@@ -1,5 +1,13 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, Code2, Zap, Target, Trophy } from "lucide-react";
+import {
+  ArrowRight,
+  Code2,
+  Zap,
+  Target,
+  Trophy,
+  Database,
+  BookOpen,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Navbar from "@/components/Navbar";
 
@@ -16,21 +24,19 @@ const Index = () => {
         <div className="container mx-auto px-4 py-20 md:py-32 relative">
           <div className="max-w-3xl mx-auto text-center animate-fade-in">
             <div className="inline-flex items-center gap-2 bg-secondary/50 border border-border rounded-full px-4 py-2 mb-6">
-              <Zap className="w-4 h-4 text-primary" />
+              <Database className="w-4 h-4 text-primary" />
               <span className="text-sm text-muted-foreground">
-                Practice makes perfect
+                First platform for DBMS OPPE prep
               </span>
             </div>
 
             <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
-              Ace the <span className="gradient-text">DBMS OPPE</span> with
-              <br />
-              Confidence
+              Practice <span className="gradient-text">SQL & Python-DB</span>
             </h1>
 
             <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-              The only platform that lets you practice both SQL questions and
-              Python-DB connectivity problems.
+              Practice both SQL queries and Python-Postgres connectivity
+              directly in your browser, just like in the actual DBMS OPPE exam.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -40,9 +46,9 @@ const Index = () => {
                   <ArrowRight className="w-5 h-5" />
                 </Link>
               </Button>
-              <Button asChild variant="outline" size="lg">
+              {/*<Button asChild variant="outline" size="lg">
                 <Link to="/problemsets">Browse Problems</Link>
-              </Button>
+              </Button>*/}
             </div>
           </div>
         </div>
@@ -53,10 +59,10 @@ const Index = () => {
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-2xl md:text-3xl font-bold mb-4">
-              Why AceMyOPPE?
+              Built for DBMS OPPE Preparation
             </h2>
             <p className="text-muted-foreground max-w-xl mx-auto">
-              Everything you need to prepare for your programming exam
+              Created by students, for students
             </p>
           </div>
 
@@ -65,36 +71,36 @@ const Index = () => {
               <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center mb-4">
                 <Code2 className="w-6 h-6 text-primary" />
               </div>
-              <h3 className="font-semibold text-lg mb-2">
-                Real Coding Environment
-              </h3>
+              <h3 className="font-semibold text-lg mb-2">Python-DB Practice</h3>
               <p className="text-sm text-muted-foreground">
-                Practice in a code editor that mirrors the actual exam
-                environment with syntax highlighting and auto-completion.
+                The only platform where you can practice connecting Python to
+                PostgreSQL directly in your browser – exactly like in the OPPE.
               </p>
             </div>
 
             <div className="bg-card border border-border rounded-xl p-6 card-hover">
               <div className="w-12 h-12 rounded-lg bg-success/20 flex items-center justify-center mb-4">
-                <Target className="w-6 h-6 text-success" />
+                <BookOpen className="w-6 h-6 text-success" />
               </div>
               <h3 className="font-semibold text-lg mb-2">
-                Curated Problem Sets
+                Exam-Pattern Questions
               </h3>
               <p className="text-sm text-muted-foreground">
-                Carefully selected problems organized by topic and difficulty to
-                match OPPE patterns.
+                Problems that match the format and difficulty of actual OPPE
+                questions, created by students who've taken the exam.
               </p>
             </div>
 
             <div className="bg-card border border-border rounded-xl p-6 card-hover">
               <div className="w-12 h-12 rounded-lg bg-accent/20 flex items-center justify-center mb-4">
-                <Trophy className="w-6 h-6 text-accent" />
+                <Target className="w-6 h-6 text-accent" />
               </div>
-              <h3 className="font-semibold text-lg mb-2">Track Progress</h3>
+              <h3 className="font-semibold text-lg mb-2">
+                Realistic Environment
+              </h3>
               <p className="text-sm text-muted-foreground">
-                Monitor your improvement and identify areas that need more
-                practice.
+                Practice in a setting that mimics the exam interface, with the
+                same constraints and requirements you'll face in the OPPE.
               </p>
             </div>
           </div>
@@ -106,15 +112,16 @@ const Index = () => {
         <div className="container mx-auto px-4 text-center">
           <div className="max-w-2xl mx-auto">
             <h2 className="text-2xl md:text-3xl font-bold mb-4">
-              Ready to <span className="gradient-text">Ace</span> Your Exam?
+              Prepare for Your <span className="gradient-text">DBMS OPPE</span>
             </h2>
             <p className="text-muted-foreground mb-8">
-              Join thousands of students who have improved their coding skills
-              with AceMyOPPE.
+              Don't just study the concepts—practice actual implementation. Get
+              comfortable with SQL queries and Python-DB connections before your
+              exam.
             </p>
             <Button asChild variant="hero" size="lg">
               <Link to="/problemsets">
-                Get Started Now
+                Start Practicing Now
                 <ArrowRight className="w-5 h-5" />
               </Link>
             </Button>
@@ -125,7 +132,17 @@ const Index = () => {
       {/* Footer */}
       <footer className="border-t border-border py-8">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>© 2024 AceMyOPPE. Built for students, by students.</p>
+          <p>
+            © {new Date().getFullYear()}. Created by{" "}
+            <a
+              href="https://ishan.page"
+              className="text-primary hover:underline"
+            >
+              Ishan
+            </a>
+            . Not affiliated with IIT Madras or IIT BS Degree in any official
+            manner.
+          </p>
         </div>
       </footer>
     </div>

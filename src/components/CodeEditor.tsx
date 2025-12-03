@@ -7,9 +7,15 @@ interface CodeEditorProps {
   languageMode: string;
   value: string;
   onChange: (value: string) => void;
+  readOnly: boolean;
 }
 
-const CodeEditor = ({ languageMode, value, onChange }: CodeEditorProps) => {
+const CodeEditor = ({
+  languageMode,
+  value,
+  onChange,
+  readOnly = false,
+}: CodeEditorProps) => {
   return (
     <div className="h-full w-full overflow-hidden rounded-lg border border-border">
       <CodeMirror
@@ -26,6 +32,7 @@ const CodeEditor = ({ languageMode, value, onChange }: CodeEditorProps) => {
           foldGutter: true,
           autocompletion: true,
         }}
+        readOnly={readOnly}
       />
     </div>
   );

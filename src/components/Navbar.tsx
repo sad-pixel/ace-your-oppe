@@ -1,7 +1,7 @@
-import { Link, useLocation } from 'react-router-dom';
-import { Code2, Menu, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useState } from 'react';
+import { Link, useLocation } from "react-router-dom";
+import { Code2, Menu, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useState } from "react";
 
 const Navbar = () => {
   const location = useLocation();
@@ -24,7 +24,9 @@ const Navbar = () => {
           <Link
             to="/"
             className={`text-sm font-medium transition-colors ${
-              isActive('/') ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+              isActive("/")
+                ? "text-primary"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             Home
@@ -32,14 +34,16 @@ const Navbar = () => {
           <Link
             to="/problemsets"
             className={`text-sm font-medium transition-colors ${
-              isActive('/problemsets') ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+              isActive("/problemsets")
+                ? "text-primary"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             Problem Sets
           </Link>
-          <Button variant="outline" size="sm">
+          {/*<Button variant="outline" size="sm">
             Sign In
-          </Button>
+          </Button>*/}
         </div>
 
         {/* Mobile Menu Button */}
@@ -49,7 +53,11 @@ const Navbar = () => {
           className="md:hidden"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
         >
-          {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          {mobileMenuOpen ? (
+            <X className="w-5 h-5" />
+          ) : (
+            <Menu className="w-5 h-5" />
+          )}
         </Button>
       </div>
 
@@ -60,7 +68,7 @@ const Navbar = () => {
             <Link
               to="/"
               className={`text-sm font-medium transition-colors ${
-                isActive('/') ? 'text-primary' : 'text-muted-foreground'
+                isActive("/") ? "text-primary" : "text-muted-foreground"
               }`}
               onClick={() => setMobileMenuOpen(false)}
             >
@@ -69,15 +77,17 @@ const Navbar = () => {
             <Link
               to="/problemsets"
               className={`text-sm font-medium transition-colors ${
-                isActive('/problemsets') ? 'text-primary' : 'text-muted-foreground'
+                isActive("/problemsets")
+                  ? "text-primary"
+                  : "text-muted-foreground"
               }`}
               onClick={() => setMobileMenuOpen(false)}
             >
               Problem Sets
             </Link>
-            <Button variant="outline" size="sm" className="w-fit">
+            {/*<Button variant="outline" size="sm" className="w-fit">
               Sign In
-            </Button>
+            </Button>*/}
           </div>
         </div>
       )}

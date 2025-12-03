@@ -1,6 +1,14 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { CheckCircle2, Loader2, Menu, Play, Send, XIcon } from "lucide-react";
+import {
+  CheckCircle2,
+  Loader2,
+  Menu,
+  Play,
+  Send,
+  XIcon,
+  Eye,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -10,6 +18,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import ProblemSidebar from "@/components/ProblemSidebar";
 import ProblemDescription from "@/components/ProblemDescription";
 import CodeEditor from "@/components/CodeEditor";
@@ -26,6 +42,8 @@ const ProblemSetView = () => {
   );
   const [code, setCode] = useState("-- Enter Your SQL Query here!");
   const [queryError, setQueryError] = useState<string | null>(null);
+  const [solutionDialogOpen, setSolutionDialogOpen] = useState(false);
+  const [solution, setSolution] = useState<string | null>(null);
 
   const { data } = useQuery(trpc.getProblemSetById.queryOptions(setId));
 
@@ -55,6 +73,7 @@ const ProblemSetView = () => {
           : "# Enter Your Python Code here!",
       );
       setQueryError(null);
+      setSolution(null);
     }
   }, [selectedProblem]);
 
@@ -103,6 +122,20 @@ const ProblemSetView = () => {
     }
   };
 
+  const handleViewSolution = () => {
+    setSolutionDialogOpen(true);
+  };
+
+  const confirmViewSolution = async () => {
+    // Here you would fetch the solution from your backend
+    // For now, let's just simulate loading a solution
+    if (selectedProblem) {
+      // In a real app, you'd fetch this from your API
+      setSolution(selectedProblem.golden || "Solution not available");
+    }
+    setSolutionDialogOpen(false);
+  };
+
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
       {/* Header */}
@@ -146,11 +179,21 @@ const ProblemSetView = () => {
               {/* Code Editor Section */}
               <div className="h-1/2 lg:h-full lg:w-1/2 flex flex-col overflow-hidden">
                 <div className="flex-1 p-2 md:p-4 overflow-hidden">
-                  <CodeEditor
-                    languageMode={selectedProblem.type}
-                    value={code}
-                    onChange={setCode}
-                  />
+                  {solution ? (
+                    <CodeEditor
+                      languageMode={selectedProblem.type}
+                      value={solution}
+                      onChange={() => {}} // Read-only
+                      readOnly={true}
+                    />
+                  ) : (
+                    <CodeEditor
+                      languageMode={selectedProblem.type}
+                      value={code}
+                      onChange={setCode}
+                      readOnly={false}
+                    />
+                  )}
                 </div>
 
                 {/* Query Results Section */}
@@ -274,34 +317,50 @@ const ProblemSetView = () => {
 
                 {/* Action Buttons */}
                 <div className="p-3 md:p-4 border-t border-border bg-card flex items-center justify-end gap-3 shrink-0">
-                  <Button
-                    variant="outline"
-                    onClick={handleRunCode}
-                    disabled={isExecuting}
-                  >
-                    {isExecuting ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <Play className="w-4 h-4 mr-2" />
-                    )}
-                    <span className="hidden sm:inline">
-                      Run {selectedProblem.type === "sql" ? "Query" : "Code"}
-                    </span>
-                    <span className="sm:hidden">Run</span>
-                  </Button>
-                  <Button
-                    variant="success"
-                    onClick={handleSubmit}
-                    disabled={isExecuting}
-                  >
-                    {isExecuting ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <Send className="w-4 h-4 mr-2" />
-                    )}
-                    <span className="hidden sm:inline">Submit Solution</span>
-                    <span className="sm:hidden">Submit</span>
-                  </Button>
+                  {solution ? (
+                    <Button variant="outline" onClick={() => setSolution(null)}>
+                      Return to Editor
+                    </Button>
+                  ) : (
+                    <>
+                      <Button variant="secondary" onClick={handleViewSolution}>
+                        <Eye className="w-4 h-4 mr-2" />
+                        <span className="hidden sm:inline">View Solution</span>
+                        <span className="sm:hidden">Solution</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={handleRunCode}
+                        disabled={isExecuting}
+                      >
+                        {isExecuting ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Play className="w-4 h-4 mr-2" />
+                        )}
+                        <span className="hidden sm:inline">
+                          Run{" "}
+                          {selectedProblem.type === "sql" ? "Query" : "Code"}
+                        </span>
+                        <span className="sm:hidden">Run</span>
+                      </Button>
+                      <Button
+                        variant="success"
+                        onClick={handleSubmit}
+                        disabled={isExecuting}
+                      >
+                        {isExecuting ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Send className="w-4 h-4 mr-2" />
+                        )}
+                        <span className="hidden sm:inline">
+                          Submit Solution
+                        </span>
+                        <span className="sm:hidden">Submit</span>
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             </>
@@ -312,6 +371,28 @@ const ProblemSetView = () => {
           )}
         </div>
       </div>
+
+      {/* Solution Confirmation Dialog */}
+      <Dialog open={solutionDialogOpen} onOpenChange={setSolutionDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>View Solution</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to view the solution? This will reveal the
+              answer to the problem.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex justify-between">
+            <Button
+              variant="outline"
+              onClick={() => setSolutionDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button onClick={confirmViewSolution}>Yes, Show Solution</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

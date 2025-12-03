@@ -172,6 +172,7 @@ export const useCodeExecution = (selectedProblem: {
 
             // Compare hash with expected answer
             const isCorrect = hash === selectedProblem.solutionHash;
+            console.log("current hash: ", hash);
             setIsSolutionCorrect(isCorrect);
             setIsExecuting(false);
             workerRef.current?.removeEventListener("message", messageHandler);

@@ -6,8 +6,8 @@ import * as trpcExpress from "@trpc/server/adapters/express";
 import express from "express";
 import { eq, sql } from "drizzle-orm";
 import { problemsets, problems, databases } from "./db/schema";
-
-const db = drizzle(process.env.DATABASE_URL!);
+import morgan from "morgan";
+const db = drizzle(Bun.env.DATABASE_URL!);
 
 const appRouter = router({
   getAllProblemSets: publicProcedure.query(async () => {
@@ -95,7 +95,7 @@ const app = express();
 //   }
 //   next();
 // });
-
+app.use(morgan("common"));
 app.use(
   (
     _req: express.Request,
