@@ -1,6 +1,6 @@
-import CodeMirror from '@uiw/react-codemirror';
-import { python } from '@codemirror/lang-python';
-import { vscodeDark } from '@uiw/codemirror-theme-vscode';
+import CodeMirror from "@uiw/react-codemirror";
+import { sql } from "@codemirror/lang-sql";
+import { vscodeDark } from "@uiw/codemirror-theme-vscode";
 
 interface CodeEditorProps {
   value: string;
@@ -14,7 +14,7 @@ const CodeEditor = ({ value, onChange }: CodeEditorProps) => {
         value={value}
         height="100%"
         theme={vscodeDark}
-        extensions={[python()]}
+        extensions={[sql()]}
         onChange={onChange}
         className="h-full text-sm"
         basicSetup={{

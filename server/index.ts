@@ -1,0 +1,89 @@
+import { createHTTPServer } from "@trpc/server/adapters/standalone";
+import { z } from "zod";
+import "dotenv/config";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { publicProcedure, router } from "./trpc";
+import cors from "cors";
+import { eq, sql } from "drizzle-orm";
+import { problemsets, problems, databases } from "./db/schema";
+
+const db = drizzle(process.env.DATABASE_URL!);
+
+const appRouter = router({
+  getAllProblemSets: publicProcedure.query(async () => {
+    const problemSets = await db
+      .select({
+        id: problemsets.id,
+        name: problemsets.name,
+        type: problemsets.type,
+        source: problemsets.source,
+        problemCount: sql<number>`count(${problems.id})`,
+      })
+      .from(problemsets)
+      .leftJoin(problems, eq(problems.setId, problemsets.id))
+      .groupBy(problemsets.id)
+      .orderBy(problemsets.id);
+
+    return problemSets;
+  }),
+  getAllDatabases: publicProcedure.query(async () => {
+    return await db.select().from(databases);
+  }),
+  getProblemSetById: publicProcedure.input(z.string()).query(async (opts) => {
+    const { input } = opts;
+    const id = parseInt(input, 10);
+
+    const problemSet = await db
+      .select()
+      .from(problemsets)
+      .where(eq(problemsets.id, id));
+
+    if (!problemSet.length) {
+      return null;
+    }
+
+    const problemsList = await db
+      .select({
+        id: problems.id,
+        setId: problems.setId,
+        questionNo: problems.questionNo,
+        question: problems.question,
+        database: problems.database,
+        type: problems.type,
+        golden: problems.golden,
+        solutionHash: problems.solutionHash,
+        databaseName: databases.name,
+      })
+      .from(problems)
+      .leftJoin(databases, eq(problems.database, databases.id))
+      .where(eq(problems.setId, id))
+      .orderBy(problems.questionNo);
+
+    return {
+      ...problemSet[0],
+      problems: problemsList,
+    };
+  }),
+  getProblemSolutionHash: publicProcedure
+    .input(z.string())
+    .query(async (opts) => {
+      const { input } = opts;
+      const id = parseInt(input, 10);
+
+      const solution = await db
+        .select({ solutionHash: problems.solutionHash })
+        .from(problems)
+        .where(eq(problems.id, id));
+
+      return solution.length ? solution[0].solutionHash : null;
+    }),
+});
+
+export type AppRouter = typeof appRouter;
+
+const server = createHTTPServer({
+  middleware: cors(),
+  router: appRouter,
+});
+
+server.listen(3000);
