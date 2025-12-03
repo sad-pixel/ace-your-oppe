@@ -1,8 +1,10 @@
 import { Badge } from "@/components/ui/badge";
-
+import { useState } from "react";
 import { inferRouterOutputs } from "@trpc/server";
 import { type AppRouter } from "server";
 import { SchemaVisualizer } from "@/components/SchemaVisualizer";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 
 type RouterOutput = inferRouterOutputs<AppRouter>;
 type ProblemOutput = RouterOutput["getProblemSetById"]["problems"][number];
@@ -14,114 +16,6 @@ interface ProblemDescriptionProps {
 const problemTypeColors = {
   python: "bg-blue-500/20 text-blue-400 border-blue-500/30",
   sql: "bg-green-500/20 text-green-400 border-green-500/30",
-};
-
-const exampleSchema = {
-  tables: [
-    {
-      id: "teams",
-      name: "teams",
-      columns: [
-        { name: "team_id", type: "VARCHAR(10)", isPrimary: true },
-        { name: "name", type: "VARCHAR(80)" },
-        { name: "city", type: "VARCHAR(80)" },
-        { name: "playground", type: "VARCHAR(80)" },
-        { name: "jersey_home_color", type: "VARCHAR(80)" },
-        { name: "jersey_away_color", type: "VARCHAR(80)" },
-      ],
-    },
-    {
-      id: "managers",
-      name: "managers",
-      columns: [
-        { name: "mgr_id", type: "VARCHAR(10)", isPrimary: true },
-        { name: "name", type: "VARCHAR(80)" },
-        { name: "dob", type: "DATE" },
-        { name: "team_id", type: "VARCHAR(10)", isForeign: true },
-        { name: "since", type: "DATE" },
-      ],
-    },
-    {
-      id: "matches",
-      name: "matches",
-      columns: [
-        { name: "match_num", type: "VARCHAR(10)", isPrimary: true },
-        { name: "match_date", type: "DATE" },
-        { name: "host_team_id", type: "VARCHAR(10)", isForeign: true },
-        { name: "guest_team_id", type: "VARCHAR(10)", isForeign: true },
-        { name: "host_team_score", type: "INTEGER" },
-        { name: "guest_team_score", type: "INTEGER" },
-      ],
-    },
-    {
-      id: "match_referees",
-      name: "match_referees",
-      columns: [
-        {
-          name: "match_num",
-          type: "VARCHAR(10)",
-          isPrimary: true,
-          isForeign: true,
-        },
-        { name: "referee", type: "VARCHAR(15)" },
-        { name: "assistant_referee_1", type: "VARCHAR(15)" },
-        { name: "assistant_referee_2", type: "VARCHAR(15)" },
-        { name: "fourth_referee", type: "VARCHAR(15)" },
-      ],
-    },
-    {
-      id: "referees",
-      name: "referees",
-      columns: [
-        { name: "referee_id", type: "VARCHAR(10)", isPrimary: true },
-        { name: "name", type: "VARCHAR(80)" },
-        { name: "dob", type: "DATE" },
-      ],
-    },
-    {
-      id: "players",
-      name: "players",
-      columns: [
-        { name: "player_id", type: "VARCHAR(10)", isPrimary: true },
-        { name: "name", type: "VARCHAR(80)" },
-        { name: "dob", type: "DATE" },
-        { name: "jersey_no", type: "INTEGER" },
-        { name: "team_id", type: "VARCHAR(10)", isForeign: true },
-      ],
-    },
-  ],
-  relationships: [
-    {
-      source: "teams",
-      target: "managers",
-      sourceColumn: "team_id",
-      targetColumn: "team_id",
-    },
-    {
-      source: "teams",
-      target: "players",
-      sourceColumn: "team_id",
-      targetColumn: "team_id",
-    },
-    {
-      source: "teams",
-      target: "matches",
-      sourceColumn: "team_id",
-      targetColumn: "host_team_id",
-    },
-    {
-      source: "teams",
-      target: "matches",
-      sourceColumn: "team_id",
-      targetColumn: "guest_team_id",
-    },
-    {
-      source: "matches",
-      target: "match_referees",
-      sourceColumn: "match_num",
-      targetColumn: "match_num",
-    },
-  ],
 };
 
 const ProblemDescription = ({ problem }: ProblemDescriptionProps) => {
@@ -143,48 +37,82 @@ const ProblemDescription = ({ problem }: ProblemDescriptionProps) => {
 
         <div className="mt-6">
           <h3 className="text-sm font-semibold text-foreground mb-3">
-            Database Schema
+            {problem.type === "python"
+              ? "Database Information"
+              : "Database Schema (Click to Enlarge)"}
           </h3>
 
-          {/*<div className="w-full h-96">
-            <SchemaVisualizer schema={exampleSchema} />
-          </div>*/}
-
-          {/*{problem.examples.map((example, idx) => (
-            <div key={idx} className="bg-secondary/50 rounded-lg p-4 mb-3 border border-border">
-              <div className="mb-2">
-                <span className="text-muted-foreground text-xs">Input:</span>
-                <code className="block font-mono text-xs text-primary mt-1 bg-background/50 p-2 rounded">
-                  {example.input}
-                </code>
-              </div>
-              <div>
-                <span className="text-muted-foreground text-xs">Output:</span>
-                <code className="block font-mono text-xs text-success mt-1 bg-background/50 p-2 rounded">
-                  {example.output}
-                </code>
-              </div>
-              {example.explanation && (
-                <div className="mt-2 text-xs text-muted-foreground">
-                  <span className="font-medium">Explanation:</span> {example.explanation}
+          {problem.type === "python" ? (
+            <div className="border rounded-md">
+              <Tabs defaultValue="schema">
+                <TabsList className="border-b w-full flex rounded-none bg-transparent h-auto p-0">
+                  <TabsTrigger
+                    value="schema"
+                    className="px-4 py-2 rounded-none data-[state=active]:bg-secondary data-[state=active]:shadow-none"
+                  >
+                    Schema
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="connection"
+                    className="px-4 py-2 rounded-none data-[state=active]:bg-secondary data-[state=active]:shadow-none"
+                  >
+                    Connection Instructions
+                  </TabsTrigger>
+                </TabsList>
+                <div className="p-4">
+                  <TabsContent value="schema" className="mt-0">
+                    <div className="overflow-x-auto">
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <img
+                            src={`/db_schemas/${problem.databaseName}.png`}
+                            alt="Database Schema"
+                            className="max-w-full h-auto cursor-pointer hover:opacity-90 transition-opacity"
+                          />
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-[80vw] p-0 bg-background">
+                          <img
+                            src={`/db_schemas/${problem.databaseName}.png`}
+                            alt="Database Schema"
+                            className="w-full h-auto"
+                          />
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="connection" className="mt-0">
+                    <div className="bg-muted p-3 rounded text-sm font-mono">
+                      <pre className="whitespace-pre-wrap">{`database = sys.argv[1] # name of the database isobtained from the command line argument
+user = os.environ.get('PGUSER')
+password = os.environ.get('PGPASSWORD')
+host = os.environ.get('PGHOST')
+port = os.environ.get('PGPORT')`}</pre>
+                    </div>
+                  </TabsContent>
                 </div>
-              )}
+              </Tabs>
             </div>
-          ))}*/}
+          ) : (
+            <div className="overflow-x-auto">
+              <Dialog>
+                <DialogTrigger asChild>
+                  <img
+                    src={`/db_schemas/${problem.databaseName}.png`}
+                    alt="Database Schema"
+                    className="max-w-full h-auto cursor-pointer hover:opacity-90 transition-opacity"
+                  />
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[80vw] p-0 bg-background">
+                  <img
+                    src={`/db_schemas/${problem.databaseName}.png`}
+                    alt="Database Schema"
+                    className="w-full h-auto"
+                  />
+                </DialogContent>
+              </Dialog>
+            </div>
+          )}
         </div>
-
-        {/*<div className="mt-6">
-          <h3 className="text-sm font-semibold text-foreground mb-3">
-            Constraints
-          </h3>
-          <ul className="list-disc list-inside space-y-1">
-            {problem.constraints.map((constraint, idx) => (
-              <li key={idx} className="text-xs text-muted-foreground font-mono">
-                {constraint}
-              </li>
-            ))}
-          </ul>
-        </div>*/}
       </div>
     </div>
   );

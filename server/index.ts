@@ -1,9 +1,9 @@
-import { createHTTPServer } from "@trpc/server/adapters/standalone";
 import { z } from "zod";
 import "dotenv/config";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { publicProcedure, router } from "./trpc";
-import cors from "cors";
+import * as trpcExpress from "@trpc/server/adapters/express";
+import express from "express";
 import { eq, sql } from "drizzle-orm";
 import { problemsets, problems, databases } from "./db/schema";
 
@@ -81,9 +81,48 @@ const appRouter = router({
 
 export type AppRouter = typeof appRouter;
 
-const server = createHTTPServer({
-  middleware: cors(),
-  router: appRouter,
+const app = express();
+// CORS middleware
+// app.use((req, res, next) => {
+//   res.setHeader("Access-Control-Allow-Origin", "*");
+//   res.setHeader(
+//     "Access-Control-Allow-Methods",
+//     "GET, POST, PUT, DELETE, OPTIONS",
+//   );
+//   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+//   if (req.method === "OPTIONS") {
+//     return res.sendStatus(200);
+//   }
+//   next();
+// });
+
+app.use(
+  (
+    _req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ) => {
+    res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+    res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+    next();
+  },
+);
+app.use(
+  "/trpc",
+  trpcExpress.createExpressMiddleware({
+    router: appRouter,
+  }),
+);
+
+// Serve static files from the ./build directory
+app.use(express.static("./build"));
+
+// For SPA, send index.html for any routes not matched
+app.get("/*splat", (_req: express.Request, res: express.Response) => {
+  res.sendFile("index.html", { root: "./build" });
 });
 
-server.listen(3000);
+app.listen(3000, () => {
+  console.log("Server is running on http://localhost:3000");
+  console.log("Current working directory:", process.cwd());
+});

@@ -1,31 +1,47 @@
 import { loadPyodide, PyodideAPI } from "pyodide";
 import { PGlite } from "@electric-sql/pglite";
 
-let db: PGlite | null = null;
-let pyodide: PyodideAPI | null = null;
+// ==========================================
+// CONFIGURATION
+// ==========================================
+const BUFFER_SIZE = 5 * 1024 * 1024; // 5MB
 
-async function runPythonCode(
-  env: Record<string, string> = {},
-  files: Record<string, string> = {},
-  pythonCode: string,
-  database_dump?: string,
-): Promise<string> {
-  try {
-    console.log("Trying to run code");
-    // Initialize Pyodide
-    pyodide = await loadPyodide({
-      env: env,
-    });
+// ==========================================
+// LOGIC BRANCHING
+// ==========================================
+const isDbWorker = self.name === "PGlite_SubWorker";
 
-    // Initialize PGlite database
-    db = new PGlite();
-    await db.waitReady;
+if (isDbWorker) {
+  runDatabaseMode();
+} else {
+  runPythonMode();
+}
 
-    try {
-      console.log(`Loading database dump: ${database_dump}`);
+// ==========================================
+// MODE 1: DATABASE SUB-WORKER
+// ==========================================
+async function runDatabaseMode() {
+  let sharedInt32: Int32Array | null = null;
+  let sharedUint8: Uint8Array | null = null;
 
-      // Fetch the database dump file
-      const response = await fetch("/db_dumps/" + database_dump + ".sql");
+  let dbInstance: PGlite | null = null;
+
+  self.onmessage = async (e: MessageEvent) => {
+    const { type, buffer, sql, params } = e.data;
+
+    if (type === "INIT_BUFFER") {
+      sharedInt32 = new Int32Array(buffer);
+      sharedUint8 = new Uint8Array(buffer);
+      return;
+    }
+
+    if (type === "SQL_INIT") {
+      dbInstance = new PGlite();
+      await dbInstance.waitReady;
+
+      const response = await fetch(
+        "/db_dumps/" + e.data.database_dump + ".sql",
+      );
       console.log(`Fetch response status: ${response.status}`);
 
       const dumpSql = await response.text();
@@ -33,215 +49,223 @@ async function runPythonCode(
 
       // Execute the dump on the database
       console.log(`Executing database dump...`);
-      await db.exec(dumpSql);
-      console.log(`Database dump execution completed successfully`);
+      await dbInstance.exec(dumpSql);
 
-      self.postMessage({
-        type: "DB_DUMP_LOADED",
-        success: true,
-      });
-      console.log(`Notified main thread of successful dump load`);
-    } catch (error) {
-      console.error(`Error loading database dump: ${error.message}`);
-      self.postMessage({
-        type: "DB_DUMP_ERROR",
-        error: error.message,
-      });
-      console.error(`Notified main thread of dump load error`);
-      throw error; // Re-throw to abort the process
-    }
-
-    // Create files from the files object
-    if (files && Object.keys(files).length > 0) {
-      for (const [filepath, content] of Object.entries(files)) {
-        pyodide.FS.writeFile(filepath, content);
+      // Signal that the database initialization is complete
+      if (sharedInt32) {
+        Atomics.store(sharedInt32, 2, 1); // Use index 2 for DB init status
+        Atomics.notify(sharedInt32, 2);
       }
     }
 
-    // Make the database instance accessible to Python
-    pyodide.globals.set("PGlite_db", db);
+    if (type === "SQL_REQUEST") {
+      if (!sharedUint8 || !sharedInt32) return;
 
-    // Create a fake psycopg2 module to interface with PGlite
+      try {
+        const result = await dbInstance.query(sql, params);
+
+        const responseText = JSON.stringify({
+          rows: result.rows,
+          fields: result.fields,
+          rowCount: result.rows.length,
+        });
+
+        const encoder = new TextEncoder();
+        const bytes = encoder.encode(responseText);
+
+        if (bytes.length > sharedUint8.length - 8) {
+          throw new Error("Result too large for buffer");
+        }
+
+        sharedUint8.set(bytes, 8);
+        sharedInt32[1] = bytes.length;
+        Atomics.store(sharedInt32, 0, 1); // 1 = Success
+      } catch (err: any) {
+        const errorObj = { error: err.message || "Unknown DB Error" };
+        const bytes = new TextEncoder().encode(JSON.stringify(errorObj));
+        sharedUint8.set(bytes, 8);
+        sharedInt32[1] = bytes.length;
+        Atomics.store(sharedInt32, 0, 2); // 2 = Error
+      }
+
+      Atomics.notify(sharedInt32, 0);
+    }
+  };
+}
+
+// ==========================================
+// MODE 2: PYTHON COORDINATOR
+// ==========================================
+async function runPythonMode() {
+  let pyodide: PyodideAPI;
+  let dbWorker: Worker;
+  let sharedBuffer: SharedArrayBuffer;
+  let sharedInt32: Int32Array;
+  let sharedUint8: Uint8Array;
+
+  async function setupEnvironment() {
+    sharedBuffer = new SharedArrayBuffer(BUFFER_SIZE);
+    sharedInt32 = new Int32Array(sharedBuffer);
+    sharedUint8 = new Uint8Array(sharedBuffer);
+
+    dbWorker = new Worker(new URL(import.meta.url), {
+      type: "module",
+      name: "PGlite_SubWorker",
+    });
+
+    dbWorker.postMessage({ type: "INIT_BUFFER", buffer: sharedBuffer });
+
+    pyodide = await loadPyodide();
+
+    // 1. JS BRIDGE
+    (self as any).sql_bridge = (query: string, params: unknown) => {
+      Atomics.store(sharedInt32, 0, 0);
+      dbWorker.postMessage({ type: "SQL_REQUEST", sql: query, params: params });
+      Atomics.wait(sharedInt32, 0, 0);
+
+      const status = Atomics.load(sharedInt32, 0);
+      const length = sharedInt32[1];
+      const decoder = new TextDecoder();
+      const bytes = sharedUint8.slice(8, 8 + length);
+      const response = JSON.parse(decoder.decode(bytes));
+
+      if (status === 2) throw new Error(response.error);
+      return response;
+    };
+
+    // 2. PYTHON DRIVER MOCK (Updated with Type Conversions)
     await pyodide.runPythonAsync(`
-class FakePsycopg2Connection:
-    def __init__(self, js_db):
-        self.js_db = js_db
-        self.autocommit = False
-        self._transaction_status = 0  # IDLE
+import js, sys
+from datetime import datetime, date
 
-    def cursor(self):
-        return FakePsycopg2Cursor(self.js_db)
-
-    def commit(self):
-        self._transaction_status = 0  # IDLE
-
-    def rollback(self):
-        self._transaction_status = 0  # IDLE
-
-    def close(self):
-        pass
-
-class FakePsycopg2Cursor:
-    def __init__(self, js_db):
-        self.js_db = js_db
+class FakeCursor:
+    def __init__(self):
         self.description = None
         self.rowcount = -1
         self._rows = []
         self._index = 0
 
     def execute(self, query, params=None):
-        import js
+        js_params = None
+        final_query = query
+
+        # 1. Handle Params
+        if params:
+            if '%s' in final_query:
+                cnt = 1
+                while '%s' in final_query:
+                    final_query = final_query.replace('%s', '$' + str(cnt), 1)
+                    cnt += 1
+            js_params = js.Array.from_(params)
+
         try:
-            if params:
-                # Convert params to JavaScript array if it's a tuple or list
-                if isinstance(params, (list, tuple)):
-                    js_params = js.Array.from_(params)
-                else:
-                    js_params = params
+            # 2. Call Bridge
+            res_proxy = js.sql_bridge(final_query, js_params)
+            res = res_proxy.to_py()
 
-                result = self.js_db.query(query, js_params)
-            else:
-                result = self.js_db.query(query)
+            if 'rows' in res:
+                raw_rows = res['rows']
+                raw_fields = res['fields']
 
-            if result and hasattr(result, 'rows'):
-                self._rows = result.rows
+                # Extract names and OIDs (Data Type IDs)
+                field_names = [f['name'] for f in raw_fields]
+                field_oids = {f['name']: f['dataTypeID'] for f in raw_fields}
+
+                self.description = [(name,) for name in field_names]
+                self._rows = []
+
+                # 3. Convert Rows
+                for r in raw_rows:
+                    row_data = []
+                    for name in field_names:
+                        val = r[name]
+                        oid = field_oids[name]
+
+                        # --- TYPE CONVERSION LOGIC ---
+                        # OID 1082 = DATE in Postgres
+                        if oid == 1082 and isinstance(val, str):
+                            try:
+                                # JS sends "1999-05-20T00:00:00.000Z" -> Take first 10 chars
+                                val = datetime.strptime(val[:10], '%Y-%m-%d').date()
+                            except:
+                                pass # Keep as string on failure
+
+                        # Add more OIDs here if needed (e.g. 1114 for TIMESTAMP)
+
+                        row_data.append(val)
+
+                    self._rows.append(tuple(row_data))
+
                 self.rowcount = len(self._rows)
-
-                # Set up description if available
-                if hasattr(result, 'fields') and result.fields:
-                    self.description = [
-                        (field.name, None, None, None, None, None, None)
-                        for field in result.fields
-                    ]
-                else:
-                    self.description = None
             else:
                 self._rows = []
-                # For operations like INSERT/UPDATE/DELETE
-                if hasattr(result, 'rowCount'):
-                    self.rowcount = result.rowCount
 
             self._index = 0
-            return self
         except Exception as e:
-            print(f"SQL Error: {e}")
-            raise
+            raise Exception(str(e))
 
+    def fetchall(self): return self._rows
     def fetchone(self):
-        if self._index >= len(self._rows):
-            return None
-        row = self._rows[self._index]
-        self._index += 1
-        return row
+        if self._index < len(self._rows):
+            r = self._rows[self._index]
+            self._index += 1
+            return r
+        return None
+    def close(self): pass
 
-    def fetchall(self):
-        remaining = self._rows[self._index:]
-        self._index = len(self._rows)
-        return remaining
+class FakeConn:
+    def cursor(self): return FakeCursor()
+    def commit(self): pass
+    def close(self): pass
 
-    def fetchmany(self, size=None):
-        if size is None:
-            size = 1
-        end = min(self._index + size, len(self._rows))
-        result = self._rows[self._index:end]
-        self._index = end
-        return result
-
-    def close(self):
-        self._rows = []
-
-# Create the psycopg2 module
-class FakePsycopg2:
-    def __init__(self):
-        self.extensions = type('extensions', (), {
-            'ISOLATION_LEVEL_AUTOCOMMIT': 0,
-            'TRANSACTION_STATUS_IDLE': 0
-        })
-
-    def connect(self, *args, **kwargs):
-        return FakePsycopg2Connection(PGlite_db)
-
-# Register the module
-import sys
-sys.modules['psycopg2'] = FakePsycopg2()`);
-
-    // Run the Python code
-    // Redirect Python stdout and stderr to capture output
-    await pyodide.runPythonAsync(`
-      import io
-      import sys
-
-      class CaptureOutput:
-          def __init__(self):
-              self.stdout = io.StringIO()
-              self.stderr = io.StringIO()
-              self.original_stdout = sys.stdout
-              self.original_stderr = sys.stderr
-
-          def __enter__(self):
-              sys.stdout = self.stdout
-              sys.stderr = self.stderr
-              return self
-
-          def __exit__(self, exc_type, exc_val, exc_tb):
-              sys.stdout = self.original_stdout
-              sys.stderr = self.original_stderr
-
-          def get_output(self):
-              return self.stdout.getvalue() + self.stderr.getvalue()
-
-      output_capture = CaptureOutput()
+sys.modules['psycopg2'] = type('psycopg2', (), {
+    'connect': lambda *a, **k: FakeConn()
+})
     `);
-
-    // Execute the Python code with output capturing
-    await pyodide.runPythonAsync(`
-      with output_capture:
-          exec(${JSON.stringify(pythonCode)})
-    `);
-
-    // Get the captured output
-    const result = await pyodide.runPythonAsync(`output_capture.get_output()`);
-
-    console.log("Python execution completed successfully");
-    return result;
-  } catch (error) {
-    console.error("Error running Python code:", error);
-    throw error;
   }
-}
 
-// Web Worker Context
-self.addEventListener("message", async (event) => {
-  // You can handle specific commands from the main thread here
-  if (event.data.type === "EXECUTE_PYTHON") {
-    console.log(event);
+  self.onmessage = async (event: MessageEvent) => {
+    if (event.data.type === "EXECUTE_PYTHON") {
+      try {
+        if (!pyodide) await setupEnvironment();
 
-    try {
-      // Execute the Python code with provided environment and files
-      const result = await runPythonCode(
-        event.data.env || {},
-        event.data.files || {},
-        event.data.pythonCode,
-        event.data.database_dump,
-      );
+        // Reset database initialization status
+        Atomics.store(sharedInt32, 2, 0);
 
-      // Notify the main thread that the database is ready
-      self.postMessage({
-        type: "DB_READY",
-        databaseId: Date.now().toString(),
-      });
+        // Send SQL_INIT message to initialize database
+        dbWorker.postMessage({
+          type: "SQL_INIT",
+          database_dump: event.data.database_dump,
+        });
 
-      // Send the result back to the main thread
-      self.postMessage({
-        type: "PYTHON_RESULT",
-        result,
-      });
-    } catch (error) {
-      // Send error back to the main thread
-      self.postMessage({
-        type: "PYTHON_ERROR",
-        error: error.message,
-      });
+        // Wait for database initialization to complete
+        Atomics.wait(sharedInt32, 2, 0);
+
+        // Capture stdout/stderr
+        await pyodide.runPythonAsync(`
+import io, sys
+sys.stdout = io.StringIO()
+sys.stderr = sys.stdout
+        `);
+
+        await pyodide.runPythonAsync(event.data.pythonCode);
+
+        const output = await pyodide.runPythonAsync("sys.stdout.getvalue()");
+        self.postMessage({ type: "PYTHON_RESULT", result: output });
+      } catch (error: any) {
+        // Attempt to read traceback from buffer if execution failed
+        let traceback = "";
+        try {
+          traceback = await pyodide.runPythonAsync("sys.stdout.getvalue()");
+        } catch (e) {
+          // Silently handle errors when trying to get traceback
+        }
+
+        self.postMessage({
+          type: "PYTHON_ERROR",
+          error: traceback || error.message,
+        });
+      }
     }
-  }
-});
+  };
+}
