@@ -1,0 +1,167 @@
+// Import Worker
+import PGLiteWorker from "@/lib/pglite-worker.ts?worker";
+import { useState, useRef, useEffect } from "react";
+
+// Define an interface for query result based on PGlite query response
+interface QueryResult {
+  rows: unknown[][];
+  fields: { name: string; dataTypeID: number }[];
+  rowCount: number;
+  command: string;
+  oid: number | null;
+}
+
+// Custom hook for code execution logic
+export const useCodeExecution = (selectedProblem: {
+  id: number;
+  databaseName: string;
+  solutionHash: string;
+}) => {
+  const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [isSolutionCorrect, setIsSolutionCorrect] = useState<boolean | null>(
+    null,
+  );
+  const workerRef = useRef<Worker | null>(null);
+
+  // Initialize the PGLite worker
+  useEffect(() => {
+    // Create worker
+    workerRef.current = new PGLiteWorker();
+
+    // Set up event listener
+    workerRef.current.onmessage = (event) => {
+      const { type, result, error } = event.data;
+
+      if (type === "DB_READY") {
+        console.log("Database is ready");
+      } else if (type === "DB_DUMP_LOADED") {
+        console.log("Database dump loaded successfully");
+      } else if (type === "QUERY_RESULT") {
+        setQueryResult(result);
+        setIsExecuting(false);
+      } else if (type === "QUERY_ERROR") {
+        setIsExecuting(false);
+        console.error("Query error:", error);
+      }
+    };
+
+    // Cleanup worker on unmount
+    return () => {
+      if (workerRef.current) {
+        workerRef.current.terminate();
+        workerRef.current = null;
+      }
+    };
+  }, [selectedProblem]);
+
+  const runCode = (code: string) => {
+    if (!workerRef.current) {
+      console.error("Database not ready");
+      return Promise.reject(new Error("Database not ready"));
+    }
+
+    setIsExecuting(true);
+    setIsSolutionCorrect(null);
+
+    return new Promise<void>((resolve, reject) => {
+      const messageHandler = (event: MessageEvent) => {
+        const { type, result, error } = event.data;
+
+        if (type === "QUERY_RESULT") {
+          setQueryResult(result);
+          setIsExecuting(false);
+          // ONLY remove listener when the specific task is done
+          workerRef.current?.removeEventListener("message", messageHandler);
+          resolve();
+        } else if (type === "QUERY_ERROR") {
+          setIsExecuting(false);
+          console.error("Query error:", error);
+          // ONLY remove listener when the specific task is done
+          workerRef.current?.removeEventListener("message", messageHandler);
+          reject(new Error(error));
+        }
+
+        // If the message is "DB_DUMP_LOADED" or "DB_READY",
+        // we do NOTHING and keep the listener active.
+      };
+
+      workerRef.current?.addEventListener("message", messageHandler);
+
+      workerRef.current.postMessage({
+        type: "EXECUTE_QUERY",
+        sql: code,
+        database_dump: selectedProblem.databaseName,
+      });
+    });
+  };
+
+  const submitSolution = async (code: string) => {
+    if (!workerRef.current) {
+      console.error("Database not ready");
+      return Promise.reject(new Error("Database not ready"));
+    }
+
+    setIsExecuting(true);
+
+    // Create a promise to handle the worker response
+    const submitPromise = new Promise<void>((resolve, reject) => {
+      const messageHandler = async (event: MessageEvent) => {
+        const { type, result, error } = event.data;
+
+        if (type === "QUERY_RESULT") {
+          try {
+            // Generate hash from the result
+            const resultString = JSON.stringify(result.rows);
+            const encoder = new TextEncoder();
+            const data = encoder.encode(resultString);
+            const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hash = hashArray
+              .map((b) => b.toString(16).padStart(2, "0"))
+              .join("");
+
+            // Compare hash with expected answer
+            const isCorrect = hash === selectedProblem.solutionHash;
+            setIsSolutionCorrect(isCorrect);
+            setQueryResult(result);
+            setIsExecuting(false);
+            workerRef.current?.removeEventListener("message", messageHandler);
+            resolve();
+          } catch (err) {
+            setIsExecuting(false);
+            workerRef.current?.removeEventListener("message", messageHandler);
+            console.error("Hash generation error:", err);
+            reject(err);
+          }
+        } else if (type === "QUERY_ERROR") {
+          setIsExecuting(false);
+          setIsSolutionCorrect(false);
+          workerRef.current?.removeEventListener("message", messageHandler);
+          console.error("Query error:", error);
+          reject(new Error(error));
+        }
+      };
+
+      // Add temporary event listener for this submission
+      workerRef.current?.addEventListener("message", messageHandler);
+
+      // Send the query to the worker
+      workerRef.current.postMessage({
+        type: "EXECUTE_QUERY",
+        sql: code,
+        database_dump: selectedProblem.databaseName,
+      });
+    });
+
+    return submitPromise;
+  };
+
+  return {
+    queryResult,
+    isExecuting,
+    isSolutionCorrect,
+    runCode,
+    submitSolution,
+  };
+};

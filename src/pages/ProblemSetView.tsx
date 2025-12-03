@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo, useRef } from "react";
-import { useParams, Navigate } from "react-router-dom";
-import { Menu, Play, Send } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { useParams } from "react-router-dom";
+import { CheckCircle2, Loader2, Menu, Play, Send, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -13,12 +13,10 @@ import {
 import ProblemSidebar from "@/components/ProblemSidebar";
 import ProblemDescription from "@/components/ProblemDescription";
 import CodeEditor from "@/components/CodeEditor";
-import { toast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { trpc } from "@/lib/trpc";
-
-// Import Worker
-import PGLiteWorker from "@/lib/pglite-worker.ts?worker";
+import { useCodeExecution } from "@/hooks/use-code-execution";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const ProblemSetView = () => {
   const { setId } = useParams<{ setId: string }>();
@@ -27,14 +25,9 @@ const ProblemSetView = () => {
     null,
   );
   const [code, setCode] = useState("-- Enter Your SQL Query here!");
-  const [queryResult, setQueryResult] = useState<any>(null);
-  const [isExecuting, setIsExecuting] = useState(false);
-  const workerRef = useRef<Worker | null>(null);
+  const [queryError, setQueryError] = useState<string | null>(null);
 
-  // const {problemSet} = problemSets.find((ps) => ps.id === setId);
-  const { data, isLoading } = useQuery(
-    trpc.getProblemSetById.queryOptions(setId),
-  );
+  const { data } = useQuery(trpc.getProblemSetById.queryOptions(setId));
 
   const problemList = useMemo(() => data?.problems ?? [], [data?.problems]);
   const setName = useMemo(() => data?.name ?? "Loading...", [data?.name]);
@@ -56,139 +49,50 @@ const ProblemSetView = () => {
 
   useEffect(() => {
     if (selectedProblem) {
-      setCode("-- Enter Your Code Here");
+      setCode(
+        selectedProblem?.type === "sql"
+          ? "-- Enter Your SQL Query here!"
+          : "# Enter Your Python Code here!",
+      );
+      setQueryError(null);
     }
   }, [selectedProblem]);
 
-  // Initialize the PGLite worker
-  useEffect(() => {
-    // Create worker
-    workerRef.current = new PGLiteWorker();
+  // Use our custom hook with the selected problem
+  const {
+    queryResult,
+    isExecuting,
+    isSolutionCorrect,
+    runCode,
+    submitSolution,
+  } = useCodeExecution(
+    selectedProblem ?? { id: 0, databaseName: "", solutionHash: "" },
+  );
 
-    // Set up event listener
-    workerRef.current.onmessage = (event) => {
-      const { type, result, error } = event.data;
-
-      if (type === "DB_READY") {
-        console.log("Database is ready");
-      } else if (type === "DB_DUMP_LOADED") {
-        console.log("Database dump loaded successfully");
-      } else if (type === "QUERY_RESULT") {
-        setQueryResult(result);
-        setIsExecuting(false);
-        toast({
-          title: "Query executed successfully",
-          description: "Your query has been executed.",
-        });
-      } else if (type === "QUERY_ERROR") {
-        setIsExecuting(false);
-        toast({
-          title: "Error executing query",
-          description: error,
-          variant: "destructive",
-        });
+  const handleRunCode = async () => {
+    setQueryError(null);
+    try {
+      await runCode(code);
+    } catch (error) {
+      if (error instanceof Error) {
+        setQueryError(error.message);
+      } else {
+        setQueryError("An unknown error occurred");
       }
-    };
-
-    // Cleanup worker on unmount
-    return () => {
-      if (workerRef.current) {
-        workerRef.current.terminate();
-        workerRef.current = null;
-      }
-    };
-  }, [selectedProblem]);
-
-  // if (!isLoading || !problemList) {
-  //   return <Navigate to="/problemsets" replace />;
-  // }
-
-  const handleRunCode = () => {
-    if (!workerRef.current) {
-      toast({
-        title: "Database not ready",
-        description: "Please wait for the database to initialize.",
-        variant: "destructive",
-      });
-      return;
     }
-
-    setIsExecuting(true);
-    toast({
-      title: "Running code...",
-      description: "Your code is being executed.",
-    });
-
-    workerRef.current.postMessage({
-      type: "EXECUTE_QUERY",
-      sql: code,
-      database_dump: selectedProblem.databaseName,
-    });
   };
 
-  const handleSubmit = () => {
-    if (!workerRef.current) {
-      toast({
-        title: "Database not ready",
-        description: "Please wait for the database to initialize.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsExecuting(true);
-    toast({
-      title: "Submitting solution...",
-      description: "Your solution is being evaluated.",
-    });
-
-    workerRef.current.postMessage({
-      type: "EXECUTE_QUERY",
-      sql: code,
-      database_dump: selectedProblem.databaseName,
-    });
-
-    // Compare the hash of the result with the expected hash
-    workerRef.current.onmessage = async (event) => {
-      const { type, result, error } = event.data;
-
-      if (type === "QUERY_RESULT") {
-        // Generate hash from the result
-        const resultString = JSON.stringify(result.rows);
-        const encoder = new TextEncoder();
-        const data = encoder.encode(resultString);
-        const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const hash = hashArray
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join("");
-
-        // Compare hash with expected answer (assuming selectedProblem has an expectedHash)
-        if (hash === selectedProblem.solutionHash) {
-          toast({
-            title: "Correct solution!",
-            description: "Your solution matches the expected result.",
-            variant: "default",
-          });
-        } else {
-          toast({
-            title: "Incorrect solution",
-            description: "Your solution does not match the expected result.",
-            variant: "destructive",
-          });
-        }
-
-        setQueryResult(result);
-        setIsExecuting(false);
-      } else if (type === "QUERY_ERROR") {
-        setIsExecuting(false);
-        toast({
-          title: "Error executing query",
-          description: error,
-          variant: "destructive",
-        });
+  const handleSubmit = async () => {
+    setQueryError(null);
+    try {
+      await submitSolution(code);
+    } catch (error) {
+      if (error instanceof Error) {
+        setQueryError(error.message);
+      } else {
+        setQueryError("An unknown error occurred");
       }
-    };
+    }
   };
 
   return (
@@ -234,43 +138,104 @@ const ProblemSetView = () => {
               {/* Code Editor Section */}
               <div className="h-1/2 lg:h-full lg:w-1/2 flex flex-col overflow-hidden">
                 <div className="flex-1 p-2 md:p-4 overflow-hidden">
-                  <CodeEditor value={code} onChange={setCode} />
+                  <CodeEditor
+                    languageMode={selectedProblem.type}
+                    value={code}
+                    onChange={setCode}
+                  />
                 </div>
 
                 {/* Query Results Section */}
-                {queryResult && (
-                  <div className="p-3 max-h-60 overflow-auto border-t border-border">
-                    <h3 className="text-sm font-medium mb-2">Query Result:</h3>
-                    {queryResult.rows && queryResult.fields ? (
-                      <div className="rounded-md border">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              {queryResult.fields.map((field, index) => (
-                                <TableHead key={index}>{field.name}</TableHead>
-                              ))}
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {queryResult.rows.map((row, rowIndex) => (
-                              <TableRow key={rowIndex}>
-                                {row.map((cell, cellIndex) => (
-                                  <TableCell key={cellIndex}>
-                                    {cell === null ? "NULL" : String(cell)}
-                                  </TableCell>
-                                ))}
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
+                <div className="p-3 max-h-60 overflow-auto border-t border-border">
+                  <div className="py-3">
+                    {/* Show query error if it exists, otherwise show solution feedback */}
+                    {queryError ? (
+                      <Alert variant="destructive">
+                        <AlertDescription>{queryError}</AlertDescription>
+                      </Alert>
                     ) : (
-                      <pre className="text-xs overflow-x-auto">
-                        {JSON.stringify(queryResult, null, 2)}
-                      </pre>
+                      isSolutionCorrect !== null && (
+                        <Alert
+                          variant={
+                            isSolutionCorrect ? "default" : "destructive"
+                          }
+                        >
+                          <AlertDescription className="flex items-center">
+                            {isSolutionCorrect ? (
+                              <>
+                                <CheckCircle2 className="text-green-500 mr-2" />
+                                Correct solution! Well done!
+                              </>
+                            ) : (
+                              <>
+                                <XIcon className="mr-2" />
+                                Incorrect solution. Please try again.
+                              </>
+                            )}
+                          </AlertDescription>
+                        </Alert>
+                      )
                     )}
                   </div>
-                )}
+
+                  {/* Show query results */}
+                  {queryResult && (
+                    <>
+                      <h3 className="text-sm font-medium mb-2">
+                        Query Result:
+                      </h3>
+                      {queryResult.rows && queryResult.fields ? (
+                        <div className="rounded-md border">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                {queryResult.fields.map(
+                                  (field: { name: string }, index: number) => (
+                                    <TableHead key={index}>
+                                      {field.name}
+                                    </TableHead>
+                                  ),
+                                )}
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {queryResult.rows.map(
+                                (row: unknown[], rowIndex: number) => (
+                                  <TableRow key={rowIndex}>
+                                    {row.map(
+                                      (cell: unknown, cellIndex: number) => (
+                                        <TableCell key={cellIndex}>
+                                          {cell === null
+                                            ? "NULL"
+                                            : String(cell)}
+                                        </TableCell>
+                                      ),
+                                    )}
+                                  </TableRow>
+                                ),
+                              )}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      ) : (
+                        <></>
+                      )}
+                    </>
+                  )}
+
+                  {!queryResult && !queryError && !isExecuting && (
+                    <div className="text-muted-foreground text-sm">
+                      Run your query to see results
+                    </div>
+                  )}
+
+                  {isExecuting && (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                      <span className="ml-2">Executing query...</span>
+                    </div>
+                  )}
+                </div>
 
                 {/* Action Buttons */}
                 <div className="p-3 md:p-4 border-t border-border bg-card flex items-center justify-end gap-3 shrink-0">
@@ -279,7 +244,11 @@ const ProblemSetView = () => {
                     onClick={handleRunCode}
                     disabled={isExecuting}
                   >
-                    <Play className="w-4 h-4" />
+                    {isExecuting ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Play className="w-4 h-4 mr-2" />
+                    )}
                     <span className="hidden sm:inline">Run Code</span>
                     <span className="sm:hidden">Run</span>
                   </Button>
@@ -288,7 +257,11 @@ const ProblemSetView = () => {
                     onClick={handleSubmit}
                     disabled={isExecuting}
                   >
-                    <Send className="w-4 h-4" />
+                    {isExecuting ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4 mr-2" />
+                    )}
                     <span className="hidden sm:inline">Submit Solution</span>
                     <span className="sm:hidden">Submit</span>
                   </Button>
