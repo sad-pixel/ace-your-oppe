@@ -16,47 +16,44 @@ self.addEventListener("message", async (event) => {
       // Initialize the database
       await db.waitReady;
 
-      // Check if a database dump was provided
-      if (event.data.database_dump) {
-        try {
-          console.log(`Loading database dump: ${event.data.database_dump}`);
+      try {
+        console.log(`Loading database dump: ${event.data.database_dump}`);
 
-          // Fetch the database dump file
-          const response = await fetch(
-            "/db_dumps/" + event.data.database_dump + ".sql",
-          );
-          console.log(`Fetch response status: ${response.status}`);
+        // Fetch the database dump file
+        const response = await fetch(
+          "/db_dumps/" + event.data.database_dump + ".sql",
+        );
+        console.log(`Fetch response status: ${response.status}`);
 
-          const dumpSql = await response.text();
-          console.log(`Database dump loaded, size: ${dumpSql.length} bytes`);
+        const dumpSql = await response.text();
+        console.log(`Database dump loaded, size: ${dumpSql.length} bytes`);
 
-          // Execute the dump on the database
-          console.log(`Executing database dump...`);
-          await db.exec(dumpSql);
-          console.log(`Database dump execution completed successfully`);
+        // Execute the dump on the database
+        console.log(`Executing database dump...`);
+        await db.exec(dumpSql);
+        console.log(`Database dump execution completed successfully`);
 
-          self.postMessage({
-            type: "DB_DUMP_LOADED",
-            success: true,
-          });
-          console.log(`Notified main thread of successful dump load`);
-        } catch (error) {
-          console.error(`Error loading database dump: ${error.message}`);
-          self.postMessage({
-            type: "DB_DUMP_ERROR",
-            error: error.message,
-          });
-          console.error(`Notified main thread of dump load error`);
-          return; // Exit if database initialization fails
-        }
+        self.postMessage({
+          type: "DB_DUMP_LOADED",
+          success: true,
+        });
+        console.log(`Notified main thread of successful dump load`);
+      } catch (error) {
+        console.error(`Error loading database dump: ${error.message}`);
+        self.postMessage({
+          type: "DB_DUMP_ERROR",
+          error: error.message,
+        });
+        console.error(`Notified main thread of dump load error`);
+        return; // Exit if database initialization fails
       }
-
-      // Notify the main thread that the database is ready
-      self.postMessage({
-        type: "DB_READY",
-        databaseId: Date.now().toString(),
-      });
     }
+
+    // Notify the main thread that the database is ready
+    self.postMessage({
+      type: "DB_READY",
+      databaseId: Date.now().toString(),
+    });
 
     // Execute the query on the initialized database
     try {

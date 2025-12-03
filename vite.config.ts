@@ -18,6 +18,6 @@ export default defineConfig(({ mode }) => ({
     },
   },
   optimizeDeps: {
-    exclude: ["@electric-sql/pglite"],
+    exclude: ["@electric-sql/pglite", "pyodide"],
   },
 }));

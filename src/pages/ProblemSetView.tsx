@@ -61,12 +61,20 @@ const ProblemSetView = () => {
   // Use our custom hook with the selected problem
   const {
     queryResult,
+    pythonResult,
     isExecuting,
     isSolutionCorrect,
     runCode,
     submitSolution,
   } = useCodeExecution(
-    selectedProblem ?? { id: 0, databaseName: "", solutionHash: "" },
+    selectedProblem ?? {
+      id: 0,
+      databaseName: "",
+      solutionHash: "",
+      problemType: selectedProblem?.type === "python" ? "python" : "sql",
+      // env: selectedProblem?.env || {},
+      // files: selectedProblem?.files || {},
+    },
   );
 
   const handleRunCode = async () => {
@@ -178,61 +186,88 @@ const ProblemSetView = () => {
                     )}
                   </div>
 
-                  {/* Show query results */}
-                  {queryResult && (
-                    <>
-                      <h3 className="text-sm font-medium mb-2">
-                        Query Result:
-                      </h3>
-                      {queryResult.rows && queryResult.fields ? (
-                        <div className="rounded-md border">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                {queryResult.fields.map(
-                                  (field: { name: string }, index: number) => (
-                                    <TableHead key={index}>
-                                      {field.name}
-                                    </TableHead>
-                                  ),
-                                )}
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {queryResult.rows.map(
-                                (row: unknown[], rowIndex: number) => (
-                                  <TableRow key={rowIndex}>
-                                    {row.map(
-                                      (cell: unknown, cellIndex: number) => (
-                                        <TableCell key={cellIndex}>
-                                          {cell === null
-                                            ? "NULL"
-                                            : String(cell)}
-                                        </TableCell>
+                  {/* Show results based on problem type */}
+                  {selectedProblem.type === "sql"
+                    ? // SQL Query Results
+                      queryResult && (
+                        <>
+                          <h3 className="text-sm font-medium mb-2">
+                            Query Result:
+                          </h3>
+                          {queryResult.rows && queryResult.fields ? (
+                            <div className="rounded-md border">
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    {queryResult.fields.map(
+                                      (
+                                        field: { name: string },
+                                        index: number,
+                                      ) => (
+                                        <TableHead key={index}>
+                                          {field.name}
+                                        </TableHead>
                                       ),
                                     )}
                                   </TableRow>
-                                ),
-                              )}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      ) : (
-                        <></>
+                                </TableHeader>
+                                <TableBody>
+                                  {queryResult.rows.map(
+                                    (row: unknown[], rowIndex: number) => (
+                                      <TableRow key={rowIndex}>
+                                        {row.map(
+                                          (
+                                            cell: unknown,
+                                            cellIndex: number,
+                                          ) => (
+                                            <TableCell key={cellIndex}>
+                                              {cell === null
+                                                ? "NULL"
+                                                : String(cell)}
+                                            </TableCell>
+                                          ),
+                                        )}
+                                      </TableRow>
+                                    ),
+                                  )}
+                                </TableBody>
+                              </Table>
+                            </div>
+                          ) : (
+                            <></>
+                          )}
+                        </>
+                      )
+                    : // Python Code Results
+                      pythonResult !== null && (
+                        <>
+                          <h3 className="text-sm font-medium mb-2">
+                            Python Output:
+                          </h3>
+                          <div className="rounded-md border p-3 bg-muted font-mono text-sm whitespace-pre-wrap overflow-auto">
+                            {pythonResult}
+                          </div>
+                        </>
                       )}
-                    </>
-                  )}
 
-                  {!queryResult && !queryError && !isExecuting && (
-                    <div className="text-muted-foreground text-sm">
-                      Run your query to see results
-                    </div>
-                  )}
+                  {!queryResult &&
+                    !pythonResult &&
+                    !queryError &&
+                    !isExecuting && (
+                      <div className="text-muted-foreground text-sm">
+                        Run your{" "}
+                        {selectedProblem.type === "sql" ? "query" : "code"} to
+                        see results
+                      </div>
+                    )}
 
                   {isExecuting && (
                     <div className="flex items-center justify-center py-4">
                       <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                      <span className="ml-2">Executing query...</span>
+                      <span className="ml-2">
+                        Executing{" "}
+                        {selectedProblem.type === "sql" ? "query" : "code"}...
+                      </span>
                     </div>
                   )}
                 </div>
@@ -249,7 +284,9 @@ const ProblemSetView = () => {
                     ) : (
                       <Play className="w-4 h-4 mr-2" />
                     )}
-                    <span className="hidden sm:inline">Run Code</span>
+                    <span className="hidden sm:inline">
+                      Run {selectedProblem.type === "sql" ? "Query" : "Code"}
+                    </span>
                     <span className="sm:hidden">Run</span>
                   </Button>
                   <Button

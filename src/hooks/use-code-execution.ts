@@ -1,5 +1,6 @@
-// Import Worker
+// Import Workers
 import PGLiteWorker from "@/lib/pglite-worker.ts?worker";
+import PyodideWorker from "@/lib/pyodide-worker.ts?worker";
 import { useState, useRef, useEffect } from "react";
 
 // Define an interface for query result based on PGlite query response
@@ -16,18 +17,28 @@ export const useCodeExecution = (selectedProblem: {
   id: number;
   databaseName: string;
   solutionHash: string;
+  type?: "sql" | "python";
+  env?: Record<string, string>;
+  files?: Record<string, string>;
 }) => {
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
+  const [pythonResult, setPythonResult] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [isSolutionCorrect, setIsSolutionCorrect] = useState<boolean | null>(
     null,
   );
   const workerRef = useRef<Worker | null>(null);
 
-  // Initialize the PGLite worker
+  // Initialize the appropriate worker based on problem type
   useEffect(() => {
-    // Create worker
-    workerRef.current = new PGLiteWorker();
+    // Create worker based on problem type
+    const problemType = selectedProblem.type || "sql";
+    console.log("Problem type: ", selectedProblem.type);
+    if (problemType === "python") {
+      workerRef.current = new PyodideWorker();
+    } else {
+      workerRef.current = new PGLiteWorker();
+    }
 
     // Set up event listener
     workerRef.current.onmessage = (event) => {
@@ -43,6 +54,12 @@ export const useCodeExecution = (selectedProblem: {
       } else if (type === "QUERY_ERROR") {
         setIsExecuting(false);
         console.error("Query error:", error);
+      } else if (type === "PYTHON_RESULT") {
+        setPythonResult(result);
+        setIsExecuting(false);
+      } else if (type === "PYTHON_ERROR") {
+        setIsExecuting(false);
+        console.error("Python error:", error);
       }
     };
 
@@ -57,8 +74,8 @@ export const useCodeExecution = (selectedProblem: {
 
   const runCode = (code: string) => {
     if (!workerRef.current) {
-      console.error("Database not ready");
-      return Promise.reject(new Error("Database not ready"));
+      console.error("Worker not ready");
+      return Promise.reject(new Error("Worker not ready"));
     }
 
     setIsExecuting(true);
@@ -80,6 +97,16 @@ export const useCodeExecution = (selectedProblem: {
           // ONLY remove listener when the specific task is done
           workerRef.current?.removeEventListener("message", messageHandler);
           reject(new Error(error));
+        } else if (type === "PYTHON_RESULT") {
+          setPythonResult(result);
+          setIsExecuting(false);
+          workerRef.current?.removeEventListener("message", messageHandler);
+          resolve();
+        } else if (type === "PYTHON_ERROR") {
+          setIsExecuting(false);
+          console.error("Python error:", error);
+          workerRef.current?.removeEventListener("message", messageHandler);
+          reject(new Error(error));
         }
 
         // If the message is "DB_DUMP_LOADED" or "DB_READY",
@@ -88,18 +115,30 @@ export const useCodeExecution = (selectedProblem: {
 
       workerRef.current?.addEventListener("message", messageHandler);
 
-      workerRef.current.postMessage({
-        type: "EXECUTE_QUERY",
-        sql: code,
-        database_dump: selectedProblem.databaseName,
-      });
+      const problemType = selectedProblem.type || "sql";
+
+      if (problemType === "python") {
+        workerRef.current.postMessage({
+          type: "EXECUTE_PYTHON",
+          pythonCode: code,
+          database_dump: selectedProblem.databaseName,
+          env: selectedProblem.env || {},
+          files: selectedProblem.files || {},
+        });
+      } else {
+        workerRef.current.postMessage({
+          type: "EXECUTE_QUERY",
+          sql: code,
+          database_dump: selectedProblem.databaseName,
+        });
+      }
     });
   };
 
   const submitSolution = async (code: string) => {
     if (!workerRef.current) {
-      console.error("Database not ready");
-      return Promise.reject(new Error("Database not ready"));
+      console.error("Worker not ready");
+      return Promise.reject(new Error("Worker not ready"));
     }
 
     setIsExecuting(true);
@@ -108,11 +147,21 @@ export const useCodeExecution = (selectedProblem: {
     const submitPromise = new Promise<void>((resolve, reject) => {
       const messageHandler = async (event: MessageEvent) => {
         const { type, result, error } = event.data;
+        const problemType = selectedProblem.type || "sql";
 
-        if (type === "QUERY_RESULT") {
+        if (type === "QUERY_RESULT" || type === "PYTHON_RESULT") {
           try {
             // Generate hash from the result
-            const resultString = JSON.stringify(result.rows);
+            let resultString = "";
+
+            if (problemType === "python") {
+              resultString = String(result);
+              setPythonResult(result);
+            } else {
+              resultString = JSON.stringify(result.rows);
+              setQueryResult(result);
+            }
+
             const encoder = new TextEncoder();
             const data = encoder.encode(resultString);
             const hashBuffer = await crypto.subtle.digest("SHA-256", data);
@@ -124,7 +173,6 @@ export const useCodeExecution = (selectedProblem: {
             // Compare hash with expected answer
             const isCorrect = hash === selectedProblem.solutionHash;
             setIsSolutionCorrect(isCorrect);
-            setQueryResult(result);
             setIsExecuting(false);
             workerRef.current?.removeEventListener("message", messageHandler);
             resolve();
@@ -134,11 +182,14 @@ export const useCodeExecution = (selectedProblem: {
             console.error("Hash generation error:", err);
             reject(err);
           }
-        } else if (type === "QUERY_ERROR") {
+        } else if (type === "QUERY_ERROR" || type === "PYTHON_ERROR") {
           setIsExecuting(false);
           setIsSolutionCorrect(false);
           workerRef.current?.removeEventListener("message", messageHandler);
-          console.error("Query error:", error);
+          console.error(
+            `${problemType === "python" ? "Python" : "Query"} error:`,
+            error,
+          );
           reject(new Error(error));
         }
       };
@@ -146,12 +197,23 @@ export const useCodeExecution = (selectedProblem: {
       // Add temporary event listener for this submission
       workerRef.current?.addEventListener("message", messageHandler);
 
-      // Send the query to the worker
-      workerRef.current.postMessage({
-        type: "EXECUTE_QUERY",
-        sql: code,
-        database_dump: selectedProblem.databaseName,
-      });
+      const problemType = selectedProblem.type || "sql";
+
+      if (problemType === "python") {
+        workerRef.current.postMessage({
+          type: "EXECUTE_PYTHON",
+          pythonCode: code,
+          database_dump: selectedProblem.databaseName,
+          env: selectedProblem.env || {},
+          files: selectedProblem.files || {},
+        });
+      } else {
+        workerRef.current.postMessage({
+          type: "EXECUTE_QUERY",
+          sql: code,
+          database_dump: selectedProblem.databaseName,
+        });
+      }
     });
 
     return submitPromise;
@@ -159,6 +221,7 @@ export const useCodeExecution = (selectedProblem: {
 
   return {
     queryResult,
+    pythonResult,
     isExecuting,
     isSolutionCorrect,
     runCode,
