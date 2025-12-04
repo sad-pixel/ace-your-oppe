@@ -8,6 +8,8 @@ import {
   Send,
   XIcon,
   Eye,
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,7 +38,27 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const ProblemSetView = () => {
   const { setId } = useParams<{ setId: string }>();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (typeof window !== "undefined") {
+      return window.innerWidth > 1024; // 768px is the sm breakpoint
+    }
+    return false; // Default to false for SSR
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setSidebarOpen(window.innerWidth > 1024);
+    };
+
+    // Set initial value
+    handleResize();
+
+    // Add event listener for window resize
+    window.addEventListener("resize", handleResize);
+
+    // Cleanup
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
   const [selectedProblemId, setSelectedProblemId] = useState<string | null>(
     null,
   );
@@ -143,10 +165,14 @@ const ProblemSetView = () => {
         <Button
           variant="ghost"
           size="icon"
-          className="lg:hidden mr-2"
+          className="mr-2"
           onClick={() => setSidebarOpen(!sidebarOpen)}
         >
-          <Menu className="w-5 h-5" />
+          {sidebarOpen ? (
+            <PanelLeftCloseIcon className="w-8 h-8" />
+          ) : (
+            <PanelLeftOpenIcon className="w-8 h-8" />
+          )}
         </Button>
         <span className="font-semibold gradient-text">AceMyOPPE</span>
         {selectedProblem && (
@@ -164,7 +190,10 @@ const ProblemSetView = () => {
           onSelectProblem={setSelectedProblemId}
           problemSetTitle={setName}
           isOpen={sidebarOpen}
-          onToggle={() => setSidebarOpen(!sidebarOpen)}
+          onToggle={() => {
+            console.log("Toggling sidebar:", !sidebarOpen);
+            setSidebarOpen(!sidebarOpen);
+          }}
         />
 
         {/* Problem Content Area */}
