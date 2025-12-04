@@ -1,73 +1,63 @@
-# Welcome to your Lovable project
+# AceMyOPPE
 
-## Project info
+A platform designed specifically for DBMS OPPE preparation, allowing students to practice both SQL queries and Python-Postgres connectivity directly in the browser.
 
-**URL**: https://lovable.dev/projects/0473434b-fd34-4ead-bf80-74971f1d4f1a
+## Technology Stack
 
-## How can I edit this code?
+- Frontend: React with TypeScript
+- Backend: Node.js with Express and tRPC
+- Database: PostgreSQL with Drizzle ORM
+- Runtime: Bun
+- Containerization: Docker
 
-There are several ways of editing your application.
+## Development Setup
 
-**Use Lovable**
+### Prerequisites
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/0473434b-fd34-4ead-bf80-74971f1d4f1a) and start prompting.
+- [Docker](https://www.docker.com/get-started)
+- [Bun](https://bun.sh/)
 
-Changes made via Lovable will be committed automatically to this repo.
+### Local Development
 
-**Use your preferred IDE**
+1. Clone the repository:
+   ```
+   git clone https://github.com/yourusername/ace-my-oppe.git
+   cd ace-my-oppe
+   ```
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+2. Install dependencies:
+   ```
+   bun install
+   ```
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+3. Set up environment variables:
+   Create a `.env` file with the necessary configuration (database URL, etc.)
 
-Follow these steps:
+4. Start the development servers:
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+   For the frontend:
+   ```
+   pnpm run dev
+   ```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+   For the backend:
+   ```
+   bun run --watch server/index.ts
+   ```
 
-# Step 3: Install the necessary dependencies.
-npm i
+## Project Structure
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+- `/src`: Frontend React code
+  - `/components`: Reusable UI components
+  - `/pages`: Main application pages
+- `/server`: Backend server code
+  - `/db`: Database schema and migrations
+- `/public`: Static assets
 
-**Edit a file directly in GitHub**
+## Contributing
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-**Use GitHub Codespaces**
+## License
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/0473434b-fd34-4ead-bf80-74971f1d4f1a) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+MIT
