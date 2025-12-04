@@ -212,7 +212,7 @@ const ProblemSetView = () => {
         />
 
         {/* Problem Content Area */}
-        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden w-full">
           {selectedProblem ? (
             <>
               {/* Problem Description */}

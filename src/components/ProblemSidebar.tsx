@@ -49,7 +49,7 @@ const ProblemSidebar = ({
           "w-64 lg:w-72 bg-sidebar border-r border-sidebar-border",
           "flex flex-col h-full",
           "transition-transform duration-300 ease-in-out",
-          isOpen ? "translate-x-0" : "-translate-x-full",
+          isOpen ? "translate-x-0" : "hidden lg:-translate-x-full",
         )}
       >
         <div className="p-4 border-b border-sidebar-border">
