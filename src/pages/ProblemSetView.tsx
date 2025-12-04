@@ -112,9 +112,7 @@ const ProblemSetView = () => {
       id: 0,
       databaseName: "",
       solutionHash: "",
-      problemType: selectedProblem?.type === "python" ? "python" : "sql",
-      // env: selectedProblem?.env || {},
-      // files: selectedProblem?.files || {},
+      type: "python",
     },
   );
 

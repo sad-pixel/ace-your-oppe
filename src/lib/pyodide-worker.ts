@@ -133,9 +133,35 @@ async function runPythonMode() {
       return response;
     };
 
+    // Create random environment variables for PostgreSQL connection
+    const pgUser = "user_" + Math.random().toString(36).substring(2, 8);
+    const pgPassword =
+      Math.random().toString(36).substring(2, 15) +
+      Math.random().toString(36).substring(2, 15);
+    const pgHost = "localhost";
+    const pgPort = (Math.floor(Math.random() * 1000) + 5000).toString(); // Random port between 5000-5999
+    const pgDbName = "db_" + Math.random().toString(36).substring(2, 10);
+
+    // Inject environment variables through Python's os.environ
+    await pyodide.runPythonAsync(`
+    import os, sys
+    os.environ['PGUSER'] = '${pgUser}'
+    os.environ['PGPASSWORD'] = '${pgPassword}'
+    os.environ['PGHOST'] = '${pgHost}'
+    os.environ['PGPORT'] = '${pgPort}'
+    sys.argv.append('${pgDbName}')
+    `);
+
+    console.log("PostgreSQL environment variables set:", {
+      PGUSER: pgUser,
+      PGHOST: pgHost,
+      PGPORT: pgPort,
+      PGPASSWORD: pgPassword.substring(0, 3) + "...", // Log only part of password for security
+    });
+
     // 2. PYTHON DRIVER MOCK (Updated with Type Conversions)
     await pyodide.runPythonAsync(`
-import js, sys
+import js, sys, os
 from datetime import datetime, date
 
 class FakeCursor:
@@ -218,8 +244,36 @@ class FakeConn:
     def commit(self): pass
     def close(self): pass
 
+def fake_connect(dsn=None, *args, **kwargs):
+    # Get the expected values from environment
+    expected_database = sys.argv[1]
+    expected_user = os.environ.get('PGUSER')
+    expected_password = os.environ.get('PGPASSWORD')
+    expected_host = os.environ.get('PGHOST')
+    expected_port = os.environ.get('PGPORT')
+
+    # Check if credentials match environment variables
+    user = kwargs.get('user', None)
+    password = kwargs.get('password', None)
+    host = kwargs.get('host', None)
+    port = kwargs.get('port', None)
+    database = kwargs.get('database', None)
+
+    # Validate credentials
+    if not all([
+        user == expected_user,
+        password == expected_password,
+        host == expected_host,
+        port == expected_port,
+        database == expected_database
+    ]):
+        error_msg = f"Connection failed: Invalid credentials or connection parameters."
+        raise Exception(error_msg)
+
+    return FakeConn()
+
 sys.modules['psycopg2'] = type('psycopg2', (), {
-    'connect': lambda *a, **k: FakeConn()
+    'connect': fake_connect
 })
     `);
   }

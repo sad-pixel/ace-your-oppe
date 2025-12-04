@@ -17,9 +17,9 @@ export const useCodeExecution = (selectedProblem: {
   id: number;
   databaseName: string;
   solutionHash: string;
-  type?: "sql" | "python";
-  env?: Record<string, string>;
-  files?: Record<string, string>;
+  type?: string;
+  dataFileName?: string;
+  dataFileContents?: string;
 }) => {
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
   const [pythonResult, setPythonResult] = useState<string | null>(null);
@@ -122,8 +122,14 @@ export const useCodeExecution = (selectedProblem: {
           type: "EXECUTE_PYTHON",
           pythonCode: code,
           database_dump: selectedProblem.databaseName,
-          env: selectedProblem.env || {},
-          files: selectedProblem.files || {},
+          env: {},
+          files:
+            selectedProblem.dataFileName && selectedProblem.dataFileContents
+              ? {
+                  [selectedProblem.dataFileName]:
+                    selectedProblem.dataFileContents,
+                }
+              : {},
         });
       } else {
         workerRef.current.postMessage({

@@ -52,6 +52,8 @@ const appRouter = router({
         type: problems.type,
         golden: problems.golden,
         solutionHash: problems.solutionHash,
+        dataFileName: problems.fileName,
+        dataFileContents: problems.fileContents,
         databaseName: databases.name,
       })
       .from(problems)
