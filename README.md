@@ -61,3 +61,5 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## License
 
 MIT
+
+Favicon from <a href="https://www.flaticon.com/free-icons/database" title="database icons">Database icons created by srip - Flaticon</a>

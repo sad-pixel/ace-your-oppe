@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Code2, Menu, X } from "lucide-react";
+import { Code2, Github, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
@@ -41,9 +41,17 @@ const Navbar = () => {
           >
             Problem Sets
           </Link>
-          {/*<Button variant="outline" size="sm">
-            Sign In
-          </Button>*/}
+          <Button variant="outline" size="sm" asChild>
+            <a
+              href="https://github.com/sad-pixel/ace-your-oppe"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1"
+            >
+              <Github className="w-4 h-4 mr-1" />
+              GitHub
+            </a>
+          </Button>
         </div>
 
         {/* Mobile Menu Button */}

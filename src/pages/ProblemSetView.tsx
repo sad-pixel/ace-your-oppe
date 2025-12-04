@@ -10,6 +10,7 @@ import {
   Eye,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
+  Bug,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -178,6 +179,22 @@ const ProblemSetView = () => {
             / Question {selectedProblem.questionNo}
           </span>
         )}
+        <div className="ml-auto">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs"
+            onClick={() =>
+              window.open(
+                "https://github.com/sad-pixel/ace-your-oppe/issues/new",
+                "_blank",
+              )
+            }
+          >
+            <Bug className="w-4 h-4 mr-2" />
+            Report Issue
+          </Button>
+        </div>
       </header>
 
       {/* Main Content */}
