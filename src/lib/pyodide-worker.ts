@@ -62,7 +62,11 @@ async function runDatabaseMode() {
       if (!sharedUint8 || !sharedInt32) return;
 
       try {
-        const result = await dbInstance.query(sql, params);
+        const result = await dbInstance.query(sql, params, {
+          rowMode: "array",
+        });
+
+        console.log(result);
 
         const responseText = JSON.stringify({
           rows: result.rows,
@@ -195,7 +199,7 @@ class FakeCursor:
 
                 # Extract names and OIDs (Data Type IDs)
                 field_names = [f['name'] for f in raw_fields]
-                field_oids = {f['name']: f['dataTypeID'] for f in raw_fields}
+                field_oids = [f['dataTypeID'] for f in raw_fields]
 
                 self.description = [(name,) for name in field_names]
                 self._rows = []
@@ -203,9 +207,9 @@ class FakeCursor:
                 # 3. Convert Rows
                 for r in raw_rows:
                     row_data = []
-                    for name in field_names:
-                        val = r[name]
-                        oid = field_oids[name]
+                    for i in range(len(field_names)):
+                        val = r[i]
+                        oid = field_oids[i]
 
                         # --- TYPE CONVERSION LOGIC ---
                         # OID 1082 = DATE in Postgres
@@ -301,6 +305,17 @@ import io, sys
 sys.stdout = io.StringIO()
 sys.stderr = sys.stdout
         `);
+
+        // Load custom files if provided
+        if (event.data.files) {
+          console.log("Loading custom files:", Object.keys(event.data.files));
+
+          for (const [content, filename] of Object.entries(event.data.files)) {
+            // Create virtual file system entry
+            pyodide.FS.writeFile(filename as string, content as string);
+            console.log(`File loaded: ${filename} ${content}`);
+          }
+        }
 
         await pyodide.runPythonAsync(event.data.pythonCode);
 

@@ -118,18 +118,21 @@ export const useCodeExecution = (selectedProblem: {
       const problemType = selectedProblem.type || "sql";
 
       if (problemType === "python") {
+        // Prepare files for Python execution
+        const files = {};
+        if (selectedProblem.dataFileName && selectedProblem.dataFileContents) {
+          files[selectedProblem.dataFileName] =
+            selectedProblem.dataFileContents;
+        }
+
+        console.log(files);
+
         workerRef.current.postMessage({
           type: "EXECUTE_PYTHON",
           pythonCode: code,
           database_dump: selectedProblem.databaseName,
           env: {},
-          files:
-            selectedProblem.dataFileName && selectedProblem.dataFileContents
-              ? {
-                  [selectedProblem.dataFileName]:
-                    selectedProblem.dataFileContents,
-                }
-              : {},
+          files: files,
         });
       } else {
         workerRef.current.postMessage({
