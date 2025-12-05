@@ -276,8 +276,25 @@ def fake_connect(dsn=None, *args, **kwargs):
 
     return FakeConn()
 
+# Create fake error classes
+class DatabaseError(Exception):
+    pass
+
+class OperationalError(DatabaseError):
+    pass
+
+class IntegrityError(DatabaseError):
+    pass
+
+class ProgrammingError(DatabaseError):
+    pass
+
 sys.modules['psycopg2'] = type('psycopg2', (), {
-    'connect': fake_connect
+    'connect': fake_connect,
+    'DatabaseError': DatabaseError,
+    'OperationalError': OperationalError,
+    'IntegrityError': IntegrityError,
+    'ProgrammingError': ProgrammingError
 })
     `);
   }

@@ -10,8 +10,13 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Navbar from "@/components/Navbar";
+import { Stats } from "@/components/Stats";
+import { useQuery } from "@tanstack/react-query";
+import { trpc } from "@/lib/trpc";
 
 const Index = () => {
+  const homepageStats = useQuery(trpc.getHomeStatistics.queryOptions());
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -46,11 +51,43 @@ const Index = () => {
                   <ArrowRight className="w-5 h-5" />
                 </Link>
               </Button>
-              {/*<Button asChild variant="outline" size="lg">
-                <Link to="/problemsets">Browse Problems</Link>
-              </Button>*/}
+              <Button asChild variant="outline" size="lg">
+                <Link to="/playground">Use Code Editor</Link>
+              </Button>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Stats Section */}
+
+      <section className="border-t border-border">
+        <div className="container mx-auto px-4 text-center max-w-5xl">
+          <Stats
+            stats={[
+              {
+                id: "stat-1",
+                value: homepageStats.data?.totalProblemSets.toString() || "0",
+                label: "Problem sets available",
+              },
+              {
+                id: "stat-2",
+                value: homepageStats.data?.totalProblems.toString() || "0",
+                label: "Total problems to practice",
+              },
+              {
+                id: "stat-3",
+                value: homepageStats.data?.totalSqlProblems.toString() || "0",
+                label: "SQL problems",
+              },
+              {
+                id: "stat-4",
+                value:
+                  homepageStats.data?.totalPythonProblems.toString() || "0",
+                label: "Python-DB problems",
+              },
+            ]}
+          />
         </div>
       </section>
 

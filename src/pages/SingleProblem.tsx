@@ -1,0 +1,587 @@
+import { useState, useEffect } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import {
+  CheckCircle2,
+  Loader2,
+  Play,
+  Send,
+  XIcon,
+  Eye,
+  Bug,
+  ArrowLeft,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import ProblemDescription from "@/components/ProblemDescription";
+import CodeEditor from "@/components/CodeEditor";
+import { useQuery } from "@tanstack/react-query";
+import { trpc } from "@/lib/trpc";
+import { useCodeExecution } from "@/hooks/use-code-execution";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
+
+const SingleProblemView = () => {
+  const { problemId } = useParams<{ problemId: string }>();
+  const [code, setCode] = useState("-- Enter Your SQL Query here!");
+  const [queryError, setQueryError] = useState<string | null>(null);
+  const [solutionDialogOpen, setSolutionDialogOpen] = useState(false);
+  const [solution, setSolution] = useState<string | null>(null);
+
+  const { data: selectedProblem } = useQuery(
+    trpc.getProblemById.queryOptions(problemId!),
+  );
+
+  useEffect(() => {
+    if (selectedProblem) {
+      setCode(
+        selectedProblem?.type === "sql"
+          ? "-- Enter Your SQL Query here!"
+          : "# Enter Your Python Code here!",
+      );
+      setQueryError(null);
+      setSolution(null);
+    }
+  }, [selectedProblem]);
+
+  // Use our custom hook with the selected problem
+  const {
+    queryResult,
+    pythonResult,
+    isExecuting,
+    isSolutionCorrect,
+    runCode,
+    submitSolution,
+  } = useCodeExecution(
+    selectedProblem ?? {
+      id: 0,
+      databaseName: "",
+      solutionHash: "",
+      type: "python",
+    },
+  );
+
+  const handleRunCode = async () => {
+    setQueryError(null);
+    try {
+      await runCode(code);
+    } catch (error) {
+      if (error instanceof Error) {
+        setQueryError(error.message);
+      } else {
+        setQueryError("An unknown error occurred");
+      }
+    }
+  };
+
+  const handleSubmit = async () => {
+    setQueryError(null);
+    try {
+      await submitSolution(code);
+    } catch (error) {
+      if (error instanceof Error) {
+        setQueryError(error.message);
+      } else {
+        setQueryError("An unknown error occurred");
+      }
+    }
+  };
+
+  const handleViewSolution = () => {
+    setSolutionDialogOpen(true);
+  };
+
+  const confirmViewSolution = async () => {
+    // Here you would fetch the solution from your backend
+    // For now, let's just simulate loading a solution
+    if (selectedProblem) {
+      // In a real app, you'd fetch this from your API
+      setSolution(selectedProblem.golden || "Solution not available");
+    }
+    setSolutionDialogOpen(false);
+  };
+
+  const navigate = useNavigate();
+
+  return (
+    <div className="h-screen flex flex-col bg-background overflow-hidden">
+      {/* Header */}
+      <header className="h-14 border-b border-border bg-card flex items-center px-4 shrink-0">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-xs mr-2"
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(-1);
+          }}
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back
+        </Button>
+        <span className="font-semibold gradient-text">AceMyOPPE</span>
+
+        {selectedProblem && (
+          <span className="ml-4 text-sm text-muted-foreground hidden sm:block">
+            Problem #{selectedProblem.id}
+          </span>
+        )}
+        <div className="ml-auto">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs"
+            onClick={() =>
+              window.open(
+                "https://github.com/sad-pixel/ace-your-oppe/issues/new",
+                "_blank",
+              )
+            }
+          >
+            <Bug className="w-4 h-4 mr-2" />
+            Report Issue
+          </Button>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Problem Content Area */}
+        <div className="flex-1 flex flex-col overflow-hidden w-full">
+          {selectedProblem ? (
+            <div className="flex flex-col h-full">
+              {/* Main content area */}
+              <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+                {/* Desktop: Two-panel layout with resizable divide */}
+                <div className="hidden lg:flex h-full w-full overflow-hidden">
+                  <ResizablePanelGroup direction="horizontal">
+                    {/* Problem Description */}
+                    <ResizablePanel defaultSize={50} minSize={30}>
+                      <div className="h-full overflow-hidden border-r border-border">
+                        <ProblemDescription problem={selectedProblem} />
+                      </div>
+                    </ResizablePanel>
+
+                    <ResizableHandle withHandle />
+
+                    {/* Code Editor and Results Section */}
+                    <ResizablePanel defaultSize={50} minSize={30}>
+                      <div className="h-full flex flex-col overflow-hidden">
+                        {/* Code Editor */}
+                        <div className="flex-1 p-2 md:p-4 overflow-hidden">
+                          {solution ? (
+                            <CodeEditor
+                              languageMode={selectedProblem.type}
+                              value={solution}
+                              onChange={() => {}} // Read-only
+                              readOnly={true}
+                            />
+                          ) : (
+                            <CodeEditor
+                              languageMode={selectedProblem.type}
+                              value={code}
+                              onChange={setCode}
+                              readOnly={false}
+                            />
+                          )}
+                        </div>
+
+                        {/* Query Results Section */}
+                        <div className="p-3 max-h-60 overflow-auto border-t border-border">
+                          <div className="py-3">
+                            {/* Show query error if it exists, otherwise show solution feedback */}
+                            {queryError ? (
+                              <Alert variant="destructive">
+                                <AlertDescription>
+                                  {queryError}
+                                </AlertDescription>
+                              </Alert>
+                            ) : (
+                              isSolutionCorrect !== null && (
+                                <Alert
+                                  variant={
+                                    isSolutionCorrect
+                                      ? "default"
+                                      : "destructive"
+                                  }
+                                >
+                                  <AlertDescription className="flex items-center">
+                                    {isSolutionCorrect ? (
+                                      <>
+                                        <CheckCircle2 className="text-green-500 mr-2" />
+                                        Correct solution! Well done!
+                                      </>
+                                    ) : (
+                                      <>
+                                        <XIcon className="mr-2" />
+                                        Incorrect solution. Please try again.
+                                      </>
+                                    )}
+                                  </AlertDescription>
+                                </Alert>
+                              )
+                            )}
+                          </div>
+
+                          {/* Show results based on problem type */}
+                          {selectedProblem.type === "sql"
+                            ? // SQL Query Results
+                              queryResult && (
+                                <>
+                                  <h3 className="text-sm font-medium mb-2">
+                                    Query Result:
+                                  </h3>
+                                  {queryResult.rows && queryResult.fields ? (
+                                    <div className="rounded-md border">
+                                      <Table>
+                                        <TableHeader>
+                                          <TableRow>
+                                            {queryResult.fields.map(
+                                              (
+                                                field: { name: string },
+                                                index: number,
+                                              ) => (
+                                                <TableHead key={index}>
+                                                  {field.name}
+                                                </TableHead>
+                                              ),
+                                            )}
+                                          </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                          {queryResult.rows.map(
+                                            (
+                                              row: unknown[],
+                                              rowIndex: number,
+                                            ) => (
+                                              <TableRow key={rowIndex}>
+                                                {row.map(
+                                                  (
+                                                    cell: unknown,
+                                                    cellIndex: number,
+                                                  ) => (
+                                                    <TableCell key={cellIndex}>
+                                                      {cell === null
+                                                        ? "NULL"
+                                                        : String(cell)}
+                                                    </TableCell>
+                                                  ),
+                                                )}
+                                              </TableRow>
+                                            ),
+                                          )}
+                                        </TableBody>
+                                      </Table>
+                                    </div>
+                                  ) : (
+                                    <></>
+                                  )}
+                                </>
+                              )
+                            : // Python Code Results
+                              pythonResult !== null && (
+                                <>
+                                  <h3 className="text-sm font-medium mb-2">
+                                    Python Output:
+                                  </h3>
+                                  <div className="rounded-md border p-3 bg-muted font-mono text-sm whitespace-pre-wrap overflow-auto">
+                                    {pythonResult}
+                                  </div>
+                                </>
+                              )}
+
+                          {!queryResult &&
+                            !pythonResult &&
+                            !queryError &&
+                            !isExecuting && (
+                              <div className="text-muted-foreground text-sm">
+                                Run your{" "}
+                                {selectedProblem.type === "sql"
+                                  ? "query"
+                                  : "code"}{" "}
+                                to see results
+                              </div>
+                            )}
+
+                          {isExecuting && (
+                            <div className="flex items-center justify-center py-4">
+                              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                              <span className="ml-2">
+                                Executing{" "}
+                                {selectedProblem.type === "sql"
+                                  ? "query"
+                                  : "code"}
+                                ...
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </ResizablePanel>
+                  </ResizablePanelGroup>
+                </div>
+
+                {/* Mobile: Three-panel vertical layout with resizable dividers */}
+                <div className="lg:hidden flex flex-col h-full w-full overflow-hidden">
+                  <ResizablePanelGroup direction="vertical">
+                    {/* Problem Description */}
+                    <ResizablePanel defaultSize={33} minSize={20}>
+                      <div className="h-full overflow-auto">
+                        <ProblemDescription problem={selectedProblem} />
+                      </div>
+                    </ResizablePanel>
+
+                    <ResizableHandle withHandle />
+
+                    {/* Code Editor */}
+                    <ResizablePanel defaultSize={34} minSize={20}>
+                      <div className="h-full p-2 md:p-4 overflow-hidden">
+                        {solution ? (
+                          <CodeEditor
+                            languageMode={selectedProblem.type}
+                            value={solution}
+                            onChange={() => {}} // Read-only
+                            readOnly={true}
+                          />
+                        ) : (
+                          <CodeEditor
+                            languageMode={selectedProblem.type}
+                            value={code}
+                            onChange={setCode}
+                            readOnly={false}
+                          />
+                        )}
+                      </div>
+                    </ResizablePanel>
+
+                    <ResizableHandle withHandle />
+
+                    {/* Query Results Section */}
+                    <ResizablePanel defaultSize={33} minSize={20}>
+                      <div className="h-full p-3 overflow-auto">
+                        <div className="py-3">
+                          {/* Show query error if it exists, otherwise show solution feedback */}
+                          {queryError ? (
+                            <Alert variant="destructive">
+                              <AlertDescription>{queryError}</AlertDescription>
+                            </Alert>
+                          ) : (
+                            isSolutionCorrect !== null && (
+                              <Alert
+                                variant={
+                                  isSolutionCorrect ? "default" : "destructive"
+                                }
+                              >
+                                <AlertDescription className="flex items-center">
+                                  {isSolutionCorrect ? (
+                                    <>
+                                      <CheckCircle2 className="text-green-500 mr-2" />
+                                      Correct solution! Well done!
+                                    </>
+                                  ) : (
+                                    <>
+                                      <XIcon className="mr-2" />
+                                      Incorrect solution. Please try again.
+                                    </>
+                                  )}
+                                </AlertDescription>
+                              </Alert>
+                            )
+                          )}
+                        </div>
+
+                        {/* Show results based on problem type */}
+                        {selectedProblem.type === "sql"
+                          ? // SQL Query Results
+                            queryResult && (
+                              <>
+                                <h3 className="text-sm font-medium mb-2">
+                                  Query Result:
+                                </h3>
+                                {queryResult.rows && queryResult.fields ? (
+                                  <div className="rounded-md border">
+                                    <Table>
+                                      <TableHeader>
+                                        <TableRow>
+                                          {queryResult.fields.map(
+                                            (
+                                              field: { name: string },
+                                              index: number,
+                                            ) => (
+                                              <TableHead key={index}>
+                                                {field.name}
+                                              </TableHead>
+                                            ),
+                                          )}
+                                        </TableRow>
+                                      </TableHeader>
+                                      <TableBody>
+                                        {queryResult.rows.map(
+                                          (
+                                            row: unknown[],
+                                            rowIndex: number,
+                                          ) => (
+                                            <TableRow key={rowIndex}>
+                                              {row.map(
+                                                (
+                                                  cell: unknown,
+                                                  cellIndex: number,
+                                                ) => (
+                                                  <TableCell key={cellIndex}>
+                                                    {cell === null
+                                                      ? "NULL"
+                                                      : String(cell)}
+                                                  </TableCell>
+                                                ),
+                                              )}
+                                            </TableRow>
+                                          ),
+                                        )}
+                                      </TableBody>
+                                    </Table>
+                                  </div>
+                                ) : (
+                                  <></>
+                                )}
+                              </>
+                            )
+                          : // Python Code Results
+                            pythonResult !== null && (
+                              <>
+                                <h3 className="text-sm font-medium mb-2">
+                                  Python Output:
+                                </h3>
+                                <div className="rounded-md border p-3 bg-muted font-mono text-sm whitespace-pre-wrap overflow-auto">
+                                  {pythonResult}
+                                </div>
+                              </>
+                            )}
+
+                        {!queryResult &&
+                          !pythonResult &&
+                          !queryError &&
+                          !isExecuting && (
+                            <div className="text-muted-foreground text-sm">
+                              Run your{" "}
+                              {selectedProblem.type === "sql"
+                                ? "query"
+                                : "code"}{" "}
+                              to see results
+                            </div>
+                          )}
+
+                        {isExecuting && (
+                          <div className="flex items-center justify-center py-4">
+                            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                            <span className="ml-2">
+                              Executing{" "}
+                              {selectedProblem.type === "sql"
+                                ? "query"
+                                : "code"}
+                              ...
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </ResizablePanel>
+                  </ResizablePanelGroup>
+                </div>
+              </div>
+
+              {/* Action Buttons - Bottom bar across the full width of the problem area */}
+              <div className="p-3 md:p-4 border-t border-border bg-card flex items-center justify-end gap-3 shrink-0 w-full">
+                {solution ? (
+                  <Button variant="outline" onClick={() => setSolution(null)}>
+                    Return to Editor
+                  </Button>
+                ) : (
+                  <>
+                    <Button variant="secondary" onClick={handleViewSolution}>
+                      <Eye className="w-4 h-4 mr-2" />
+                      <span className="hidden sm:inline">View Solution</span>
+                      <span className="sm:hidden">Solution</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleRunCode}
+                      disabled={isExecuting}
+                    >
+                      {isExecuting ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Play className="w-4 h-4 mr-2" />
+                      )}
+                      <span className="hidden sm:inline">
+                        Run {selectedProblem.type === "sql" ? "Query" : "Code"}
+                      </span>
+                      <span className="sm:hidden">Run</span>
+                    </Button>
+                    <Button
+                      variant="success"
+                      onClick={handleSubmit}
+                      disabled={isExecuting}
+                    >
+                      {isExecuting ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4 mr-2" />
+                      )}
+                      <span className="hidden sm:inline">Submit Solution</span>
+                      <span className="sm:hidden">Submit</span>
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-muted-foreground">
+              Loading problem...
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Solution Confirmation Dialog */}
+      <Dialog open={solutionDialogOpen} onOpenChange={setSolutionDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>View Solution</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to view the solution? This will reveal the
+              answer to the problem.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex justify-between">
+            <Button
+              variant="outline"
+              onClick={() => setSolutionDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button onClick={confirmViewSolution}>Yes, Show Solution</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+export default SingleProblemView;

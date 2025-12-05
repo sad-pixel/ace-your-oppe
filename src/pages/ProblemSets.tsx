@@ -15,14 +15,14 @@ import { trpc } from "@/lib/trpc";
 const setTypeColors = {
   PYQ: "bg-success/20 text-success border-success/30",
   PA: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-  AceMyOPPE: "bg-destructive/20 text-destructive border-destructive/30",
+  Ace: "bg-destructive/20 text-destructive border-destructive/30",
 };
 
 // Icons for different problem set types
 const setTypeIcons = {
   PYQ: FileQuestion,
   PA: Pencil,
-  AceMyOPPE: Brain,
+  Ace: Brain,
 };
 
 // ProblemSet Card component
@@ -60,6 +60,39 @@ const ProblemSetCard = ({ set }) => {
   );
 };
 
+// ProblemSetColumn component
+const ProblemSetColumn = ({ title, type, problemSets }) => {
+  const filteredSets = problemSets.filter((set) => set.type === type);
+  const totalProblems = filteredSets.reduce(
+    (acc, set) => acc + Number(set.problemCount),
+    0,
+  );
+
+  return (
+    <div>
+      <div className="mb-6 pb-4 border-b border-border">
+        <div className="flex gap-3 mb-2">
+          <h3 className="font-bold text-xl text-foreground">{title}</h3>
+        </div>
+        <div className="flex gap-2">
+          <Badge variant="secondary" className="text-xs font-medium">
+            {filteredSets.length} sets
+          </Badge>
+          <span className="text-muted-foreground">•</span>
+          <span className="text-sm gradient-text font-medium">
+            {totalProblems} problems
+          </span>
+        </div>
+      </div>
+      <div className="grid gap-4">
+        {filteredSets.map((set) => (
+          <ProblemSetCard key={set.id} set={set} />
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const ProblemSets = () => {
   const problemSets = useQuery(trpc.getAllProblemSets.queryOptions());
 
@@ -80,30 +113,22 @@ const ProblemSets = () => {
 
           <div>
             {!problemSets.isLoading && (
-              <div className="grid md:grid-cols-2 gap-6">
-                {/* PYQ Column */}
-                <div>
-                  <h3 className="font-bold text-xl mb-4">PYQ</h3>
-                  <div className="grid gap-4">
-                    {problemSets.data
-                      .filter((set) => set.type === "PYQ")
-                      .map((set) => (
-                        <ProblemSetCard key={set.id} set={set} />
-                      ))}
-                  </div>
-                </div>
-
-                {/* PA Column */}
-                <div>
-                  <h3 className="font-bold text-xl mb-4">PA</h3>
-                  <div className="grid gap-4">
-                    {problemSets.data
-                      .filter((set) => set.type === "PA")
-                      .map((set) => (
-                        <ProblemSetCard key={set.id} set={set} />
-                      ))}
-                  </div>
-                </div>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <ProblemSetColumn
+                  title="PYQ"
+                  type="PYQ"
+                  problemSets={problemSets.data}
+                />
+                <ProblemSetColumn
+                  title="PA"
+                  type="PA"
+                  problemSets={problemSets.data}
+                />
+                <ProblemSetColumn
+                  title="AceMyOPPE"
+                  type="Ace"
+                  problemSets={problemSets.data}
+                />
               </div>
             )}
           </div>

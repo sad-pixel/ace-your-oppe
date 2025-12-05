@@ -1,5 +1,14 @@
 import { Link, useLocation } from "react-router-dom";
-import { Code2, Github, Menu, X } from "lucide-react";
+import {
+  Code,
+  Code2,
+  FolderOpen,
+  Github,
+  Home,
+  ListTodo,
+  Menu,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
@@ -23,23 +32,47 @@ const Navbar = () => {
         <div className="hidden md:flex items-center gap-6">
           <Link
             to="/"
-            className={`text-sm font-medium transition-colors ${
+            className={`text-sm font-medium transition-colors flex items-center gap-1.5 ${
               isActive("/")
                 ? "text-primary"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
+            <Home className="w-4 h-4" />
             Home
           </Link>
           <Link
             to="/problemsets"
-            className={`text-sm font-medium transition-colors ${
+            className={`text-sm font-medium transition-colors flex items-center gap-1.5 ${
               isActive("/problemsets")
                 ? "text-primary"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
+            <FolderOpen className="w-4 h-4" />
             Problem Sets
+          </Link>
+          <Link
+            to="/problems"
+            className={`text-sm font-medium transition-colors flex items-center gap-1.5 ${
+              isActive("/problems")
+                ? "text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <ListTodo className="w-4 h-4" />
+            All Problems
+          </Link>
+          <Link
+            to="/playground"
+            className={`text-sm font-medium transition-colors flex items-center gap-1.5 ${
+              isActive("/playground")
+                ? "text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Code className="w-4 h-4" />
+            Code Editor
           </Link>
           <Button variant="outline" size="sm" asChild>
             <a

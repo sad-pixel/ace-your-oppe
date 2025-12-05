@@ -8,6 +8,9 @@ import Index from "./pages/Index";
 import ProblemSets from "./pages/ProblemSets";
 import ProblemSetView from "./pages/ProblemSetView";
 import NotFound from "./pages/NotFound";
+import Playground from "./pages/Playground";
+import BrowseProblems from "./pages/BrowseProblems";
+import SingleProblemView from "./pages/SingleProblem";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -19,6 +22,9 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/problemsets" element={<ProblemSets />} />
           <Route path="/problemset/:setId" element={<ProblemSetView />} />
+          <Route path="/problems" element={<BrowseProblems />} />
+          <Route path="/problems/:problemId" element={<SingleProblemView />} />
+          <Route path="/playground" element={<Playground />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
