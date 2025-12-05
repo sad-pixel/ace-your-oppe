@@ -261,7 +261,7 @@ def fake_connect(dsn=None, *args, **kwargs):
     password = kwargs.get('password', None)
     host = kwargs.get('host', None)
     port = kwargs.get('port', None)
-    database = kwargs.get('database', None)
+    database = kwargs.get('database', kwargs.get('dbname', None))
 
     # Validate credentials
     if not all([
