@@ -11,6 +11,8 @@ import {
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   Bug,
+  Copy,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -113,6 +115,7 @@ const ProblemSetView = () => {
     isSolutionCorrect,
     runCode,
     submitSolution,
+    clearResults,
   } = useCodeExecution(
     selectedProblem ?? {
       id: 0,
@@ -150,6 +153,11 @@ const ProblemSetView = () => {
 
   const handleViewSolution = () => {
     setSolutionDialogOpen(true);
+  };
+
+  const handleClearOutput = () => {
+    setQueryError(null);
+    clearResults();
   };
 
   const confirmViewSolution = async () => {
@@ -431,32 +439,31 @@ const ProblemSetView = () => {
                       <div className="h-full p-3 overflow-auto">
                         <div className="py-3">
                           {/* Show query error if it exists, otherwise show solution feedback */}
-                          {queryError ? (
+                          {queryError && (
                             <Alert variant="destructive">
                               <AlertDescription>{queryError}</AlertDescription>
                             </Alert>
-                          ) : (
-                            isSolutionCorrect !== null && (
-                              <Alert
-                                variant={
-                                  isSolutionCorrect ? "default" : "destructive"
-                                }
-                              >
-                                <AlertDescription className="flex items-center">
-                                  {isSolutionCorrect ? (
-                                    <>
-                                      <CheckCircle2 className="text-green-500 mr-2" />
-                                      Correct solution! Well done!
-                                    </>
-                                  ) : (
-                                    <>
-                                      <XIcon className="mr-2" />
-                                      Incorrect solution. Please try again.
-                                    </>
-                                  )}
-                                </AlertDescription>
-                              </Alert>
-                            )
+                          )}
+                          {isSolutionCorrect !== null && (
+                            <Alert
+                              variant={
+                                isSolutionCorrect ? "default" : "destructive"
+                              }
+                            >
+                              <AlertDescription className="flex items-center">
+                                {isSolutionCorrect ? (
+                                  <>
+                                    <CheckCircle2 className="text-green-500 mr-2" />
+                                    Correct solution! Well done!
+                                  </>
+                                ) : (
+                                  <>
+                                    <XIcon className="mr-2" />
+                                    Incorrect solution. Please try again.
+                                  </>
+                                )}
+                              </AlertDescription>
+                            </Alert>
                           )}
                         </div>
 
@@ -566,6 +573,31 @@ const ProblemSetView = () => {
                   </Button>
                 ) : (
                   <>
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        navigator.clipboard.writeText(code);
+                      }}
+                      className="hidden sm:flex"
+                    >
+                      <Copy className="w-4 h-4 mr-2" />
+                      <span className="hidden sm:inline">Copy Code</span>
+                      <span className="sm:hidden">Copy</span>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={handleClearOutput}
+                      disabled={
+                        !queryResult &&
+                        !pythonResult &&
+                        !queryError &&
+                        isSolutionCorrect === null
+                      }
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      <span className="hidden sm:inline">Clear Output</span>
+                      <span className="sm:hidden">Clear</span>
+                    </Button>
                     <Button variant="secondary" onClick={handleViewSolution}>
                       <Eye className="w-4 h-4 mr-2" />
                       <span className="hidden sm:inline">View Solution</span>

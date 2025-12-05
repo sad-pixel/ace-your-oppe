@@ -17,6 +17,7 @@ export const useCodeExecution = (selectedProblem: {
   id: number;
   databaseName: string;
   solutionHash: string;
+  golden?: string;
   type?: string;
   dataFileName?: string;
   dataFileContents?: string;
@@ -135,9 +136,11 @@ export const useCodeExecution = (selectedProblem: {
           files: files,
         });
       } else {
+        console.log(selectedProblem);
         workerRef.current.postMessage({
           type: "EXECUTE_QUERY",
           sql: code,
+          golden: selectedProblem.golden,
           database_dump: selectedProblem.databaseName,
         });
       }
@@ -180,8 +183,67 @@ export const useCodeExecution = (selectedProblem: {
               .join("");
 
             // Compare hash with expected answer
-            const isCorrect = hash === selectedProblem.solutionHash;
+            let isCorrect = hash === selectedProblem.solutionHash;
             console.log("current hash: ", hash);
+
+            console.log("expected hash: ", selectedProblem.solutionHash);
+
+            // If hashes don't match, check if sorted rows match
+            console.log(event.data, isCorrect, problemType, selectedProblem);
+            console.log(
+              !isCorrect &&
+                problemType === "sql" &&
+                event.data.goldenResult !== undefined,
+            );
+            if (
+              !isCorrect &&
+              problemType === "sql" &&
+              event.data.goldenResult !== undefined
+            ) {
+              try {
+                const goldenResult = event.data.goldenResult;
+
+                // Sort both results for comparison
+                const sortedActualRows = [...(result.rows || [])].sort((a, b) =>
+                  JSON.stringify(a).localeCompare(JSON.stringify(b)),
+                );
+                const sortedGoldenRows = [...(goldenResult.rows || [])].sort(
+                  (a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)),
+                );
+
+                console.log("Sorted actual rows:", sortedActualRows);
+                console.log("Sorted golden rows:", sortedGoldenRows);
+                console.log(
+                  JSON.stringify(sortedActualRows) ===
+                    JSON.stringify(sortedGoldenRows),
+                );
+
+                // Compare sorted rows
+                if (
+                  JSON.stringify(sortedActualRows) ===
+                  JSON.stringify(sortedGoldenRows)
+                ) {
+                  console.log(
+                    "Rows match when sorted, but hash differs (likely due to ordering)",
+                  );
+                  setIsSolutionCorrect(true);
+                  setIsExecuting(false);
+                  workerRef.current?.removeEventListener(
+                    "message",
+                    messageHandler,
+                  );
+                  reject(
+                    new Error(
+                      "Your query returned the correct rows. However, your row order does not match the answer key. If the problem requires a specific order, make sure to include an ORDER BY clause. If the problem does not require ordering, you may ignore this message and continue to the next question",
+                    ),
+                  );
+                  isCorrect = true;
+                }
+              } catch (goldenError) {
+                console.error("Error executing golden query:", goldenError);
+              }
+            }
+
             setIsSolutionCorrect(isCorrect);
             setIsExecuting(false);
             workerRef.current?.removeEventListener("message", messageHandler);
@@ -210,18 +272,26 @@ export const useCodeExecution = (selectedProblem: {
       const problemType = selectedProblem.type || "sql";
 
       if (problemType === "python") {
+        const files = {};
+        if (selectedProblem.dataFileName && selectedProblem.dataFileContents) {
+          files[selectedProblem.dataFileName] =
+            selectedProblem.dataFileContents;
+        }
+
+        console.log(files);
         workerRef.current.postMessage({
           type: "EXECUTE_PYTHON",
           pythonCode: code,
           database_dump: selectedProblem.databaseName,
-          env: selectedProblem.env || {},
-          files: selectedProblem.files || {},
+          env: {},
+          files: files,
         });
       } else {
         workerRef.current.postMessage({
           type: "EXECUTE_QUERY",
           sql: code,
           database_dump: selectedProblem.databaseName,
+          golden: selectedProblem.golden,
         });
       }
     });

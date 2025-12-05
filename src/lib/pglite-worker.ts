@@ -58,9 +58,16 @@ self.addEventListener("message", async (event) => {
     // Execute the query on the initialized database
     try {
       const result = await db.query(event.data.sql, [], { rowMode: "array" });
+      console.log("Golden solution: ", event.data.golden);
+      const goldenResult = event.data.golden
+        ? await db.query(event.data.golden, [], {
+            rowMode: "array",
+          })
+        : null;
       self.postMessage({
         type: "QUERY_RESULT",
         result,
+        goldenResult,
       });
     } catch (error) {
       self.postMessage({
